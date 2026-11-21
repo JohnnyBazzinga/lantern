@@ -112,28 +112,61 @@ export async function reconcileFiles(o: ReconcileOptions): Promise<ReconcileResu
 
   const escalated = escalations(candidates, byId);
   if (o.secondOpinion && o.judge !== false && escalated.size) {
-    assertCloudAllowed(files); // throws for anything a user imported
-    let done = 0;
-    for (const [cid] of escalated) {
-      const c = candidates.find((x) => x.id === cid)!;
-      const a = byId.get(c.a)!;
-      const b = byId.get(c.b)!;
-      o.onProgress?.({ stage: 'Asking for a second opinion (synthetic drill data)', done: done++, total: escalated.size });
-      const context = acts.filter((x) => x.patientKey && x.patientKey === a.patientKey);
-      try {
-        const r = await runTask(secondOpinionTask, secondOpinionInput(a, b, context), {
-          route: 'cloud',
-          dataOrigin: 'bundled-fixture',
-          cloudModel: o.cloudModel,
-          outgoingRefs: [a.id, b.id, ...context.map((x) => x.id)].filter((v, i, s) => s.indexOf(v) === i),
-        });
-        c.cloud = { ...r.value, source: r.inferenceSource, ledgerId: r.ledger.id };
-      } catch {
-        /* the local verdict stands; the pair stays flagged */
-      }
-    }
+    await askSecondOpinion({ files, acts, candidates, escalated, cloudModel: o.cloudModel, onProgress: o.onProgress });
   }
 
   const proposals = propose({ earlier, later, candidates, identity });
   return { acts, earlier, later, identity, candidates, escalated, proposals };
+}
+
+/** What a second-opinion request would send, for the preview shown before Rita confirms. */
+export function secondOpinionPreview(acts: Act[], candidates: MatchCandidate[], escalated: Map<string, EscalationReason[]>) {
+  const byId = new Map(acts.map((a) => [a.id, a]));
+  return [...escalated.entries()].map(([cid, reasons]) => {
+    const c = candidates.find((x) => x.id === cid)!;
+    const a = byId.get(c.a)!;
+    const b = byId.get(c.b)!;
+    const context = acts.filter((x) => x.patientKey && x.patientKey === a.patientKey);
+    return { candidateId: cid, reasons, prompt: secondOpinionInput(a, b, context) };
+  });
+}
+
+/**
+ * Cloud second opinion on disputed pairs. Refuses (throws) unless every file is a bundled synthetic
+ * drill file, recognised by its SHA-256. Each request carries clinical text only: no names,
+ * hospital numbers or beds.
+ */
+export async function askSecondOpinion(o: {
+  files: SourceFile[];
+  acts: Act[];
+  candidates: MatchCandidate[];
+  escalated: Map<string, EscalationReason[]>;
+  cloudModel: string;
+  onProgress?: Progress;
+}): Promise<number> {
+  assertCloudAllowed(o.files);
+  const byId = new Map(o.acts.map((a) => [a.id, a]));
+  let done = 0;
+  let answered = 0;
+  for (const [cid] of o.escalated) {
+    const c = o.candidates.find((x) => x.id === cid);
+    if (!c) continue;
+    const a = byId.get(c.a)!;
+    const b = byId.get(c.b)!;
+    o.onProgress?.({ stage: 'Asking the cloud for a second opinion (synthetic drill data)', done: done++, total: o.escalated.size });
+    const context = o.acts.filter((x) => x.patientKey && x.patientKey === a.patientKey);
+    try {
+      const r = await runTask(secondOpinionTask, secondOpinionInput(a, b, context), {
+        route: 'cloud',
+        dataOrigin: 'bundled-fixture',
+        cloudModel: o.cloudModel,
+        outgoingRefs: [a.id, b.id, ...context.map((x) => x.id)].filter((v, i, s) => s.indexOf(v) === i),
+      });
+      c.cloud = { ...r.value, source: r.inferenceSource, ledgerId: r.ledger.id };
+      answered++;
+    } catch {
+      /* the local verdict stands; the pair stays flagged */
+    }
+  }
+  return answered;
 }

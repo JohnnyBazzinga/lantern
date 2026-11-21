@@ -58,6 +58,9 @@ describe('Ward 7B drill', () => {
     expect(s.identityFound).toBe('4/4');
     expect(s.worklist.ready).toBe(27);
     expect(s.worklist.unresolved).toBe(2);
+    expect(s.actsLost).toEqual([]);
+    expect(s.enteredTwice).toEqual([]);
+    expect(s.ambiguousEntered).toEqual([]);
 
     const wl = buildWorklist([...A, ...B], new Map(proposals.map((p) => [p.actId, p.disposition])));
     expect(wl.ready).toHaveLength(27);
@@ -134,6 +137,8 @@ describe('Ward 7B drill', () => {
     const s = scoreDrill(key, [...A, ...B], proposals, identity);
     expect(s.sameActRecall).toBe('12/21');
     expect(s.amendmentsFound).toBe('0/3');
+    expect(s.enteredTwice).toHaveLength(9); // 6 re-typings + 3 corrections
+    expect(s.actsLost).toEqual([]);
     // re-typed acts and corrections end up twice in the record
     expect(s.worklist.ready).toBeGreaterThan(27);
   });

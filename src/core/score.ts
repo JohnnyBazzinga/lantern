@@ -27,6 +27,12 @@ export interface DrillScore {
   earlierOnlyKept: string;
   identityFound: string;
   worklist: { ready: number; unresolved: number; expectedReady: number; expectedUnresolved: number };
+  /** real acts (per the answer key) with no row left in the worklist */
+  actsLost: string[];
+  /** real acts that would be entered more than once */
+  enteredTwice: string[];
+  /** ambiguous rows entered as if they were certain */
+  ambiguousEntered: string[];
   /** compact numbers for charts */
   raw: Record<string, number>;
 }
@@ -61,6 +67,18 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
     identity.some((i) => kindMatches(i.kind, c.kind) && i.actIds.some((a) => c.rows.includes(keyId.get(a) ?? ''))),
   ).length;
   const ready = proposals.filter((p) => p.disposition.kind === 'approved' || p.disposition.kind === 'corrected').length;
+  const isReady = (keyRow: string) => {
+    const k = prop.get(actOf.get(keyRow) ?? '')?.disposition.kind;
+    return k === 'approved' || k === 'corrected';
+  };
+  // one real act = a v1 row plus every v2 row that copies/re-types/corrects it, or a new v2 row
+  const realActs = [
+    ...key.rows.v1.map((r) => ({ id: r.id, rows: [r.id, ...key.rows.v2.filter((x) => x.of === r.id).map((x) => x.id)] })),
+    ...key.rows.v2.filter((x) => x.kind === 'new').map((x) => ({ id: x.id, rows: [x.id] })),
+  ];
+  const actsLost = realActs.filter((a) => !a.rows.some(isReady)).map((a) => a.id);
+  const enteredTwice = realActs.filter((a) => a.rows.filter(isReady).length > 1).map((a) => a.id);
+  const ambiguousEntered = key.rows.v2.filter((x) => x.kind === 'ambiguous' && isReady(x.id)).map((x) => x.id);
   const unresolved = proposals.filter((p) => p.disposition.kind === 'unresolved').length;
   const f = (n: number, d: number) => `${n}/${d}`;
   return {
@@ -73,6 +91,9 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
     earlierOnlyKept: f(earlier, key.expected.onlyInV1.length),
     identityFound: f(idFound, key.expected.identityConflicts.length),
     worklist: { ready, unresolved, expectedReady: key.expected.worklist.approvedActs, expectedUnresolved: key.expected.worklist.unresolved },
+    actsLost,
+    enteredTwice,
+    ambiguousEntered,
     raw: { hits, gold: gold.length, proposedPairs, falseMerges: falseMerges.length, amend, spurious, open, earlier, idFound, ready, unresolved },
   };
 }

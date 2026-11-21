@@ -1,0 +1,72 @@
+import type { Proposal, ReviewGroup } from '../core/reconcile';
+import { GROUP_ORDER } from '../core/reconcile';
+import type { Act, Disposition, IdentityIssue } from '../core/types';
+
+/**
+ * Review items: what Rita decides, one at a time. A pair of rows (earlier + later version) or a
+ * single row. Each item sits in exactly one group: the most urgent one among its rows.
+ */
+
+export interface ReviewItem {
+  id: string;
+  group: ReviewGroup;
+  kind: 'pair' | 'single';
+  a?: string; // earlier act (pairs)
+  b?: string; // later act (pairs)
+  act?: string; // single
+  actIds: string[];
+  identity: IdentityIssue[];
+  proposals: Proposal[];
+}
+
+export const GROUP_COPY: Record<ReviewGroup, { title: string; hint: string }> = {
+  identity: { title: 'Check the patient', hint: 'Name or hospital number does not match the census' },
+  open: { title: 'Ask the nurse', hint: 'Only the person who wrote it can answer' },
+  changed: { title: 'Corrected later', hint: 'The newer file documents a correction' },
+  'likely-same': { title: 'Typed twice', hint: 'Same act, worded differently' },
+  'only-earlier': { title: 'Missing from the newer file', hint: 'Lost when the sheet was edited?' },
+  'only-later': { title: 'Only in the newer file', hint: 'Logged after the first email' },
+  copies: { title: 'Identical in both files', hint: 'Nothing to compare' },
+};
+
+export function buildItems(acts: Act[], proposals: Proposal[], identity: IdentityIssue[]): ReviewItem[] {
+  const prop = new Map(proposals.map((p) => [p.actId, p]));
+  const used = new Set<string>();
+  const items: ReviewItem[] = [];
+  const rank = (g: ReviewGroup) => GROUP_ORDER.indexOf(g);
+  const issuesFor = (ids: string[]) => identity.filter((i) => i.actIds.some((a) => ids.includes(a)));
+
+  for (const p of proposals) {
+    if (p.disposition.kind !== 'duplicate' || used.has(p.actId)) continue;
+    const b = p.actId;
+    const a = p.disposition.of;
+    const pa = prop.get(a);
+    const groups = [p.group, pa?.group ?? p.group];
+    const group = groups.sort((x, y) => rank(x) - rank(y))[0]!;
+    used.add(a).add(b);
+    items.push({ id: `${a}~${b}`, group, kind: 'pair', a, b, actIds: [a, b], identity: issuesFor([a, b]), proposals: [pa!, p].filter(Boolean) });
+  }
+  // possible duplicates that no model judged: show both rows side by side, let the reviewer decide
+  for (const p of proposals) {
+    if (!p.pairWith || used.has(p.actId) || used.has(p.pairWith)) continue;
+    const pa = prop.get(p.pairWith);
+    used.add(p.pairWith).add(p.actId);
+    items.push({ id: `${p.pairWith}~${p.actId}`, group: p.group, kind: 'pair', a: p.pairWith, b: p.actId, actIds: [p.pairWith, p.actId], identity: issuesFor([p.pairWith, p.actId]), proposals: [pa!, p].filter(Boolean) });
+  }
+  for (const act of acts) {
+    if (used.has(act.id)) continue;
+    const p = prop.get(act.id);
+    if (!p) continue;
+    items.push({ id: act.id, group: p.group, kind: 'single', act: act.id, actIds: [act.id], identity: issuesFor([act.id]), proposals: [p] });
+  }
+  return items.sort((x, y) => rank(x.group) - rank(y.group));
+}
+
+export function isDecided(item: ReviewItem, decisions: Record<string, Disposition>): boolean {
+  return item.actIds.every((id) => decisions[id] !== undefined);
+}
+
+/** Lantern's suggestion for an item, as a decision map. */
+export function suggested(item: ReviewItem): Record<string, Disposition> {
+  return Object.fromEntries(item.proposals.map((p) => [p.actId, p.disposition]));
+}

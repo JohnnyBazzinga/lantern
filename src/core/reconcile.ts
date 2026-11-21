@@ -24,6 +24,8 @@ export interface Proposal {
   because: string;
   needsReview: boolean;
   group: ReviewGroup;
+  /** for a possible duplicate the model never judged: the earlier row to show next to it */
+  pairWith?: string;
 }
 
 export type ReviewGroup = 'identity' | 'open' | 'changed' | 'likely-same' | 'only-earlier' | 'only-later' | 'copies';
@@ -188,7 +190,7 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
     const unjudged = candidates.find((c) => c.b === b.id && !verdict(c, byId) && !linkedA.has(c.a));
     if (unjudged) {
       const a = byId.get(unjudged.a)!;
-      set({ actId: b.id, disposition: { kind: 'approved' }, because: `Possibly the same act as ${a.versionLabel} row ${a.row + 2}; no on-device model was available, decide manually`, needsReview: true, group: 'likely-same' });
+      set({ actId: b.id, disposition: { kind: 'approved' }, because: `Possibly the same act as ${a.versionLabel} row ${a.row + 2}; no on-device model was available, decide manually`, needsReview: true, group: 'likely-same', pairWith: a.id });
     } else set({ actId: b.id, disposition: { kind: 'approved' }, because: 'Only in the later version: a new act', needsReview: true, group: 'only-later' });
   }
 

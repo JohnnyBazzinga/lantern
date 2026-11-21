@@ -1,4 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { SessionProvider, useSession } from './app/session';
+import Start from './screens/Start';
+import Sources from './screens/Sources';
+import Review from './screens/Review';
+import Worklist from './screens/Worklist';
+import Result from './screens/Result';
+import Working from './screens/Working';
 
 const Lab = lazy(() => import('./screens/Lab'));
 
@@ -14,31 +21,39 @@ function useHashRoute(): string {
 
 export default function App() {
   const route = useHashRoute();
+  if (route.startsWith('/lab'))
+    return (
+      <div className="min-h-full bg-ink-900 text-ink-50">
+        <Suspense fallback={<div className="p-8 text-ink-400">Loading…</div>}>
+          <Lab />
+        </Suspense>
+      </div>
+    );
   return (
-    <Suspense fallback={<div className="p-8 text-ink-400">Loading…</div>}>
-      {route.startsWith('/lab') ? <Lab /> : <Home />}
-    </Suspense>
+    <SessionProvider>
+      <Product />
+    </SessionProvider>
   );
 }
 
-function Home() {
+function Product() {
+  const { session } = useSession();
+  const [view, setView] = useState<'review' | 'worklist' | 'result'>('review');
+  useEffect(() => {
+    if (!session?.acts.length) setView('review');
+  }, [session?.id, session?.acts.length]);
+  useEffect(() => window.scrollTo({ top: 0 }), [view]);
+
+  let screen;
+  if (!session) screen = <Start />;
+  else if (!session.acts.length) screen = <Sources />;
+  else if (view === 'worklist') screen = <Worklist onBack={() => setView('review')} onResult={() => setView('result')} />;
+  else if (view === 'result') screen = <Result onBack={() => setView('worklist')} />;
+  else screen = <Review onWorklist={() => setView('worklist')} />;
   return (
-    <main className="mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-6 px-6 py-16">
-      <p className="text-xs uppercase tracking-[0.25em] text-lamp">Lantern</p>
-      <h1 className="text-4xl font-semibold leading-tight">
-        When the hospital&apos;s systems go dark, the ward keeps writing.
-        <span className="block text-ink-400">Lantern turns what they wrote into records you can trust.</span>
-      </h1>
-      <p className="text-ink-200">
-        Import the spreadsheets and paper notes from an IT outage. Lantern maps them, links every act to its source cell and
-        helps you decide, row by row, what goes back into the record. Patient data stays on this device.
-      </p>
-      <div className="flex gap-3">
-        <a href="#/lab" className="rounded-lg border border-ink-600 px-4 py-2 text-sm hover:bg-ink-800">
-          Open the Lab (day-1 tests)
-        </a>
-      </div>
-      <p className="text-xs text-ink-400">Prototype · synthetic data only · documentation aid, not a medical device.</p>
-    </main>
+    <>
+      {screen}
+      <Working />
+    </>
   );
 }
