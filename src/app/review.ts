@@ -26,8 +26,8 @@ export const GROUP_COPY: Record<ReviewGroup, { title: string; hint: string }> = 
   open: { title: 'Ask the nurse', hint: 'Only the person who wrote it can answer' },
   changed: { title: 'Corrected later', hint: 'The newer file documents a correction' },
   'likely-same': { title: 'Typed twice', hint: 'Same act, worded differently' },
-  'only-earlier': { title: 'Missing from the newer file', hint: 'Lost when the sheet was edited?' },
-  'only-later': { title: 'Only in the newer file', hint: 'Logged after the first email' },
+  'only-earlier': { title: 'Missing from the newer file', hint: 'In the earlier copy, not in the later one' },
+  'only-later': { title: 'Only in the newer file', hint: 'Not in the earlier copy' },
   copies: { title: 'Identical in both files', hint: 'Nothing to compare' },
 };
 

@@ -6,9 +6,17 @@ import { Diff } from './kit';
  * with its file, version and sheet row. The highlighter marks what differs from the row
  * it is being compared with.
  */
-export function Slip({ act, other, file, label }: { act: Act; other?: Act; file?: SourceFile; label: string }) {
+export function Slip({ act, other, file, label, identity = false }: { act: Act; other?: Act; file?: SourceFile; label: string; identity?: boolean }) {
+  const who = [act.patientName, act.patientId].filter(Boolean).join(' ');
   const cells: { head: string; ref?: string; value: string; against?: string; wide?: boolean }[] = [
-    { head: 'Time', ref: act.evidence.time?.ref, value: act.eventTime, against: other?.eventTime },
+    // on identity problems, show the cells the name, number and bed were read from
+    ...(identity
+      ? [
+          { head: 'Bed', ref: act.evidence.bed?.ref, value: act.bed, against: other?.bed },
+          { head: 'Patient', ref: act.evidence.patient?.ref, value: who, against: other ? [other.patientName, other.patientId].filter(Boolean).join(' ') : undefined },
+        ]
+      : []),
+    { head: 'Time', ref: act.evidence.time?.ref, value: act.eventTime || '(no time written)', against: other?.eventTime },
     { head: 'What was done', ref: act.evidence.act?.ref, value: act.actText, against: other ? `${other.actText} ${other.notes}` : undefined, wide: true },
     ...(act.notes || other?.notes ? [{ head: 'Comments', ref: act.evidence.notes?.ref, value: act.notes, against: other ? `${other.actText} ${other.notes}` : undefined, wide: true }] : []),
     { head: 'By', ref: act.evidence.by?.ref, value: act.documentedBy },

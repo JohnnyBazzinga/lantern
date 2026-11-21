@@ -92,7 +92,11 @@ export async function reconcileFiles(o: ReconcileOptions): Promise<ReconcileResu
     const todo = candidates.filter((c) => !c.exact);
     let done = 0;
     for (const c of todo) {
-      o.onProgress?.({ stage: 'Comparing rows on this device', done: done++, total: todo.length });
+      o.onProgress?.({
+        stage: route === 'user-local' ? 'Comparing rows on this device' : 'Comparing the two versions (fictional drill: on this device if it has the AI, otherwise in the cloud)',
+        done: done++,
+        total: todo.length,
+      });
       try {
         const a = byId.get(c.a)!;
         const b = byId.get(c.b)!;

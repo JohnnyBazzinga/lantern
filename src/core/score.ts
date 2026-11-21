@@ -28,7 +28,10 @@ export interface DrillScore {
   identityFound: string;
   worklist: { ready: number; unresolved: number; expectedReady: number; expectedUnresolved: number };
   /** real acts (per the answer key) with no row left in the worklist */
+  /** real acts that never reach the worklist and are not waiting for a nurse's answer either */
   actsLost: string[];
+  /** real acts not yet on the worklist because the reviewer sent them to the nurse (not a loss) */
+  withNurse: string[];
   /** real acts that would be entered more than once */
   enteredTwice: string[];
   /** ambiguous rows entered as if they were certain */
@@ -76,7 +79,10 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
     ...key.rows.v1.map((r) => ({ id: r.id, rows: [r.id, ...key.rows.v2.filter((x) => x.of === r.id).map((x) => x.id)] })),
     ...key.rows.v2.filter((x) => x.kind === 'new').map((x) => ({ id: x.id, rows: [x.id] })),
   ];
-  const actsLost = realActs.filter((a) => !a.rows.some(isReady)).map((a) => a.id);
+  const isAsked = (keyRow: string) => prop.get(actOf.get(keyRow) ?? '')?.disposition.kind === 'unresolved';
+  const notReady = realActs.filter((a) => !a.rows.some(isReady));
+  const withNurse = notReady.filter((a) => a.rows.some(isAsked)).map((a) => a.id);
+  const actsLost = notReady.filter((a) => !a.rows.some(isAsked)).map((a) => a.id);
   const enteredTwice = realActs.filter((a) => a.rows.filter(isReady).length > 1).map((a) => a.id);
   const ambiguousEntered = key.rows.v2.filter((x) => x.kind === 'ambiguous' && isReady(x.id)).map((x) => x.id);
   const unresolved = proposals.filter((p) => p.disposition.kind === 'unresolved').length;
@@ -92,6 +98,7 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
     identityFound: f(idFound, key.expected.identityConflicts.length),
     worklist: { ready, unresolved, expectedReady: key.expected.worklist.approvedActs, expectedUnresolved: key.expected.worklist.unresolved },
     actsLost,
+    withNurse,
     enteredTwice,
     ambiguousEntered,
     raw: { hits, gold: gold.length, proposedPairs, falseMerges: falseMerges.length, amend, spurious, open, earlier, idFound, ready, unresolved },

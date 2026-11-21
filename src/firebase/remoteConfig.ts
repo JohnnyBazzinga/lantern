@@ -19,6 +19,8 @@ export const RC_DEFAULTS = {
   prompt_set_version: 'v1',
   cloud_second_opinion_enabled: true,
   local_batch_rows: 5,
+  persist_imported_reviews: true,
+  allow_export: true,
 } as const;
 
 export interface LanternConfig {
@@ -28,6 +30,10 @@ export interface LanternConfig {
   promptSetVersion: string;
   cloudSecondOpinionEnabled: boolean;
   localBatchRows: number;
+  /** hospital IT: keep imported reviews in the browser (up to 12 h) so work survives a closed tab; off = memory only */
+  persistImportedReviews: boolean;
+  /** hospital IT: allow CSV download and printing of the worklist */
+  allowExport: boolean;
   /** where the values came from: fresh fetch, last activated (cached) config, or in-code defaults */
   source: 'remote' | 'cached' | 'defaults';
   detail: string;
@@ -39,6 +45,8 @@ const fromDefaults = (detail: string): LanternConfig => ({
   promptSetVersion: RC_DEFAULTS.prompt_set_version,
   cloudSecondOpinionEnabled: RC_DEFAULTS.cloud_second_opinion_enabled,
   localBatchRows: RC_DEFAULTS.local_batch_rows,
+  persistImportedReviews: RC_DEFAULTS.persist_imported_reviews,
+  allowExport: RC_DEFAULTS.allow_export,
   source: 'defaults',
   detail,
 });
@@ -92,6 +100,8 @@ async function load(): Promise<LanternConfig> {
     promptSetVersion: getValue(rc, 'prompt_set_version').asString() || RC_DEFAULTS.prompt_set_version,
     cloudSecondOpinionEnabled: getValue(rc, 'cloud_second_opinion_enabled').asBoolean(),
     localBatchRows: getValue(rc, 'local_batch_rows').asNumber() || RC_DEFAULTS.local_batch_rows,
+    persistImportedReviews: getValue(rc, 'persist_imported_reviews').asBoolean(),
+    allowExport: getValue(rc, 'allow_export').asBoolean(),
     source,
     detail,
   };

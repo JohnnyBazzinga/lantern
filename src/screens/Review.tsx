@@ -3,7 +3,11 @@ import { Check, ChevronRight } from 'lucide-react';
 import { subscribeLedger, type LedgerEntry } from '../ai/ledger';
 import { GROUP_COPY, isDecided, suggested, type ReviewItem } from '../app/review';
 import { useSession } from '../app/session';
-import { GROUP_ORDER, guard, type ReviewGroup } from '../core/reconcile';
+import { isHighAlert, ownerOf, relayedFrom } from '../core/clinical';
+import { pairQuestion, singleQuestion } from '../core/questions';
+import { GROUP_ORDER, guard, ruleVerdict, type ReviewGroup } from '../core/reconcile';
+import { errorProneAbbreviations } from '../core/text';
+import { AnswerBox } from '../ui/AnswerBox';
 import type { Act, Disposition, IdentityIssue, Judgment, MatchCandidate, Relation } from '../core/types';
 import { Button, LanternMark, Meter, Notice, RanOn } from '../ui/kit';
 import { PatientLine, Slip } from '../ui/Slip';
@@ -85,12 +89,14 @@ function ReviewHeader({ onWorklist }: { onWorklist: () => void }) {
         </div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <Meter done={s.decidedCount} total={session.acts.length} />
-          <span className="text-sm text-ink-soft" title="Measured from the requests this page made">
+          <span className="text-sm text-ink-soft" title="Counted from the requests this page made">
             {session.kind === 'import' ? (
               <>Patient data sent anywhere: <strong className="text-scrub">none</strong></>
+            ) : deviceCalls === 0 && cloudCalls.length > 0 ? (
+              <>No on-device model on this PC: the drill&apos;s AI ran in the cloud on {sentRows} fictional rows</>
             ) : (
               <>
-                {deviceCalls} comparisons on this device{cloudCalls.length ? `, ${sentRows} synthetic rows sent to the cloud` : ', nothing sent'}
+                {deviceCalls} AI calls on this device{cloudCalls.length ? `, ${sentRows} fictional rows sent to the cloud` : ', nothing sent'}
               </>
             )}
           </span>
@@ -167,8 +173,10 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
   const candidate = item.kind === 'pair' ? session.candidates.find((c) => c.a === item.a && c.b === item.b) : undefined;
   const decided = isDecided(item, session.decisions);
   const identityOpen = item.identity.filter((i) => !session.identityDecisions[i.id]);
+  const identityAsked = item.identity.filter((i) => session.identityDecisions[i.id] === 'ask');
   const override = item.identity.find((i) => session.identityDecisions[i.id] === 'census')?.suggestion;
   const copy = GROUP_COPY[item.group];
+  const highAlert = isHighAlert(a) || (b ? isHighAlert(b) : false);
 
   const decide = (d: Record<string, Disposition>, label: string) => {
     s.decide(item, d, label);
@@ -180,17 +188,20 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
       <p className="text-sm text-ink-soft">
         {copy.title}. {copy.hint}.
       </p>
-      <div id="item-title" className="mt-1">
+      <div id="item-title" className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
         <PatientLine act={a} override={override} />
+        {highAlert && (
+          <span className="rounded-sm border border-pen/50 px-1.5 py-0.5 text-[13px] font-semibold text-pen">High-alert medicine: check dose and status</span>
+        )}
       </div>
 
       {item.identity.map((issue) => (
-        <IdentityBox key={issue.id} issue={issue} />
+        <IdentityBox key={issue.id} issue={issue} act={a} />
       ))}
 
       <div className={`mt-6 flex flex-col gap-5 ${b ? 'xl:flex-row' : ''}`}>
-        <Slip act={a} other={b} file={fileOf(a)} label={b ? versionName(fileOf(a)!, session.kind) : versionName(fileOf(a)!, session.kind)} />
-        {b && <Slip act={b} other={a} file={fileOf(b)} label={versionName(fileOf(b)!, session.kind)} />}
+        <Slip act={a} other={b} file={fileOf(a)} label={versionName(fileOf(a)!, session.kind)} identity={item.identity.length > 0} />
+        {b && <Slip act={b} other={a} file={fileOf(b)} label={versionName(fileOf(b)!, session.kind)} identity={item.identity.length > 0} />}
       </div>
 
       <MarginNotes item={item} candidate={candidate} a={a} b={b} />
@@ -199,6 +210,10 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
         {decided && <CurrentDecision item={item} />}
         {identityOpen.length > 0 ? (
           <p className="text-[15px] text-pen">Settle the patient identity above first.</p>
+        ) : identityAsked.length > 0 ? (
+          <p className="text-[15px] text-pen">
+            These rows wait for {ownerOf(b ?? a)} to confirm the patient. The question is on the worklist; once you have the answer, settle the identity above.
+          </p>
         ) : (
           <Actions item={item} a={a} b={b} decided={decided} onDecide={decide} />
         )}
@@ -207,7 +222,7 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
   );
 }
 
-function IdentityBox({ issue }: { issue: IdentityIssue }) {
+function IdentityBox({ issue, act }: { issue: IdentityIssue; act: Act }) {
   const s = useSession();
   const choice = s.session!.identityDecisions[issue.id];
   const title = {
@@ -217,49 +232,71 @@ function IdentityBox({ issue }: { issue: IdentityIssue }) {
     'not-in-census': 'This patient is not on the 21:00 census',
     'no-identity': 'There is no name or hospital number',
   }[issue.kind];
+  const settle = (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {issue.suggestion && (
+        <Button onClick={() => s.decideIdentity(issue.id, 'census')}>
+          Use the census: {issue.suggestion.patientName}, {issue.suggestion.patientId}
+        </Button>
+      )}
+      {issue.kind === 'not-in-census' && <Button onClick={() => s.decideIdentity(issue.id, 'as-written')}>New admission: keep as written</Button>}
+      {issue.kind !== 'not-in-census' && issue.kind !== 'no-identity' && (
+        <Button tone="secondary" onClick={() => s.decideIdentity(issue.id, 'as-written')}>
+          Keep as written
+        </Button>
+      )}
+      {choice !== 'ask' && (
+        <Button tone="pen" onClick={() => s.decideIdentity(issue.id, 'ask')}>
+          Ask {ownerOf(act)}
+        </Button>
+      )}
+    </div>
+  );
   return (
     <div className="mt-5 rounded-md border border-pen/40 bg-pen-wash px-4 py-3">
       <p className="font-semibold text-pen">{title}</p>
       <p className="mt-0.5 text-[15px]">{issue.detail}</p>
-      {choice ? (
+      {choice === 'ask' ? (
+        <>
+          <p className="mt-2 text-sm text-pen">Waiting for {ownerOf(act)} to confirm the patient. Nothing for this patient row goes on the list until then.</p>
+          <AnswerBox refId={`identity:${issue.id}`} owner={ownerOf(act)} />
+          {s.session!.answers?.[`identity:${issue.id}`] && issue.kind !== 'no-identity' && settle}
+        </>
+      ) : choice ? (
         <p className="mt-2 flex items-center gap-1.5 text-sm text-scrub">
-          <Check size={15} /> Settled: {choice === 'census' ? 'use the census identity' : choice === 'as-written' ? 'keep as written' : 'sent to the nurse'}.
+          <Check size={15} /> Settled: {choice === 'census' ? 'use the census identity' : 'keep as written'}.
         </p>
       ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {issue.suggestion && (
-            <Button onClick={() => s.decideIdentity(issue.id, 'census')}>
-              Use the census: {issue.suggestion.patientName}, {issue.suggestion.patientId}
-            </Button>
-          )}
-          {issue.kind === 'not-in-census' && (
-            <Button onClick={() => s.decideIdentity(issue.id, 'as-written')}>New admission: keep as written</Button>
-          )}
-          {issue.kind !== 'not-in-census' && issue.kind !== 'no-identity' && (
-            <Button tone="secondary" onClick={() => s.decideIdentity(issue.id, 'as-written')}>
-              Keep as written
-            </Button>
-          )}
-          <Button tone="pen" onClick={() => s.decideIdentity(issue.id, 'ask')}>
-            Ask the nurse
-          </Button>
-        </div>
+        settle
       )}
     </div>
   );
 }
 
+/** Numbers that occur in one row but not the other (doses, times, values), to say exactly what differs. */
+function numberDiff(a: Act, b: Act): string {
+  const nums = (x: Act): string[] => x.actText.match(/\d+(?:\.\d+)?/g) ?? [];
+  const na = nums(a);
+  const nb = nums(b);
+  const onlyA = na.filter((n) => !nb.includes(n));
+  const onlyB = nb.filter((n) => !na.includes(n));
+  return [onlyA.length && `${onlyA.join(', ')} only in the earlier copy`, onlyB.length && `${onlyB.join(', ')} only in the later copy`].filter(Boolean).join('; ');
+}
+
 function MarginNotes({ item, candidate, a, b }: { item: ReviewItem; candidate?: MatchCandidate; a: Act; b?: Act }) {
   const s = useSession();
   const reasons = candidate ? s.escalated.get(candidate.id) : undefined;
-  const note = (j: Judgment | undefined, who: 'on_device' | 'in_cloud') => {
+  // label every opinion by where it actually ran, never by the route that was asked for
+  const note = (j: Judgment | undefined, role: 'first' | 'second') => {
     if (!j || !b) return null;
     const g = guard(j.relation, a, b);
+    const who =
+      j.source === 'on_device' ? 'Gemini Nano, on this device,' : role === 'second' ? 'Gemini in the cloud (second opinion)' : 'Gemini in the cloud (no on-device model on this PC)';
     return (
       <li className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
-        <RanOn source={j.source === 'rule' ? 'rule' : who} />
+        <RanOn source={j.source} />
         <span>
-          {who === 'on_device' ? 'Gemini Nano' : 'Gemini (second opinion)'} reads these as <strong className="font-semibold">{RELATION_TEXT[j.relation]}</strong>
+          {who} reads these as <strong className="font-semibold">{RELATION_TEXT[j.relation]}</strong>
           {j.evidence && <span className="text-ink-soft">, because of “{j.evidence}”</span>}.
           {g.relation !== j.relation && (
             <span className="mt-1 block text-ink-soft">
@@ -270,7 +307,11 @@ function MarginNotes({ item, candidate, a, b }: { item: ReviewItem; candidate?: 
       </li>
     );
   };
+  const rule = b && !candidate?.exact && !candidate?.local && !candidate?.cloud ? ruleVerdict(a, b) : null;
+  const relayed = b ? relayedFrom(b) : null;
+  const missingTime = b && (!a.eventTime || !b.eventTime) ? `${!a.eventTime ? 'The earlier' : 'The later'} copy has no time.` : null;
   const because = item.proposals.map((p) => p.because).filter((x, i, arr) => x && arr.indexOf(x) === i);
+  const differs = b && reasons?.includes('numbers-differ') ? numberDiff(a, b) : '';
   return (
     <aside className="mt-6" aria-label="Why Lantern suggests this">
       <ul className="space-y-2.5 text-[15px]">
@@ -279,15 +320,35 @@ function MarginNotes({ item, candidate, a, b }: { item: ReviewItem; candidate?: 
             <RanOn source="rule" /> <span>Identical text, time and patient in both files.</span>
           </li>
         )}
-        {note(candidate?.local, 'on_device')}
-        {note(candidate?.cloud, 'in_cloud')}
-        {because.map((t) => (
-          <li key={t} className="text-ink-soft">
-            {t}
+        {note(candidate?.local, 'first')}
+        {note(candidate?.cloud, 'second')}
+        {rule && (
+          <li className="flex items-start gap-3">
+            <RanOn source="rule" /> <span>No AI judged this pair. Lantern&apos;s rules: {rule.rule}.</span>
           </li>
-        ))}
-        {reasons && !candidate?.cloud && (
-          <li className="text-ink-soft">Disputed: {reasons.map((r) => REASON_TEXT[r] ?? r).join('; ')}.</li>
+        )}
+        {relayed && (
+          <li className="flex items-start gap-3 text-pen">
+            <RanOn source="rule" />
+            <span>
+              {b!.documentedBy || 'Someone'} wrote this correction on {relayed}&apos;s word. {relayed} must confirm it: it changes {relayed}&apos;s record.
+            </span>
+          </li>
+        )}
+        {missingTime && <li className="text-pen">{missingTime}</li>}
+        {item.undecidedByModel && !rule ? (
+          <li className="text-ink-soft">No AI judged this pair and Lantern&apos;s rules cannot decide it: compare the two rows, or ask the nurse.</li>
+        ) : (
+          because.map((t) => (
+            <li key={t} className="text-ink-soft">
+              {t}
+            </li>
+          ))
+        )}
+        {reasons && !candidate?.cloud && !item.undecidedByModel && !(rule && reasons.every((r) => r === 'local-unavailable')) && (
+          <li className="text-ink-soft">
+            Disputed: {reasons.map((r) => (r === 'numbers-differ' && differs ? `the numbers differ (${differs})` : (REASON_TEXT[r] ?? r))).join('; ')}.
+          </li>
         )}
       </ul>
     </aside>
@@ -299,7 +360,7 @@ const REASON_TEXT: Record<string, string> = {
   'competing-match': 'another row could be the same act',
   'numbers-differ': 'the numbers in the two rows differ',
   abstained: 'the model was not sure',
-  'local-unavailable': 'no on-device model was available',
+  'local-unavailable': 'no AI model judged this pair',
 };
 
 function CurrentDecision({ item }: { item: ReviewItem }) {
@@ -310,13 +371,15 @@ function CurrentDecision({ item }: { item: ReviewItem }) {
       !x
         ? ''
         : x.kind === 'approved'
-          ? 'kept'
+          ? x.note
+            ? `kept (${x.note})`
+            : 'kept'
           : x.kind === 'corrected'
             ? 'kept with the correction'
             : x.kind === 'duplicate'
               ? 'marked as a copy'
               : x.kind === 'unresolved'
-                ? `sent to ${x.owner}`
+                ? `waiting for ${x.owner}'s answer`
                 : `left out (${x.reason})`,
     )
     .filter(Boolean);
@@ -327,60 +390,108 @@ function CurrentDecision({ item }: { item: ReviewItem }) {
   );
 }
 
+/** Words that only one row has (e.g. "RR 24"): what a "keep one" would drop. */
+function onlyIn(x: Act, y: Act): string[] {
+  const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9.]+/g, '');
+  const other = squash(`${y.actText} ${y.notes}`);
+  // "2 mg" vs "2mg", "s/c" vs "SC": only report words the other row really lacks
+  return x.actText.split(/[\s,;:()]+/).filter((w) => squash(w).length > 1 && !other.includes(squash(w)));
+}
+
+type Option = { label: string; d: Record<string, Disposition>; suggested?: boolean; tone?: 'primary' | 'secondary' | 'pen'; confirm?: string };
+
 function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; b?: Act; decided: boolean; onDecide: (d: Record<string, Disposition>, label: string) => void }) {
-  const decisions = useSession().session!.decisions;
-  const ask = (ids: string[], question: string): Record<string, Disposition> =>
-    Object.fromEntries(ids.map((id) => [id, { kind: 'unresolved', owner: (b ?? a).documentedBy ? `documenting clinician (${(b ?? a).documentedBy})` : 'nurse in charge', question }]));
+  const session = useSession().session!;
+  const decisions = session.decisions;
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const ask = (ids: string[], owner: string, question: string): Record<string, Disposition> =>
+    Object.fromEntries(ids.map((id) => [id, { kind: 'unresolved', owner, question, ref: item.id }]));
   const sug = suggested(item);
-  const options: { label: string; d: Record<string, Disposition>; suggested?: boolean; tone?: 'primary' | 'secondary' | 'pen' }[] = [];
+  const options: Option[] = [];
   const isSug = (d: Record<string, Disposition>) => JSON.stringify(d) === JSON.stringify(sug);
+  const rowName = (x: Act) => `${x.versionLabel} row ${x.row + 2}`;
+  let drops = '';
+  const answer = session.answers?.[item.id];
 
   if (item.kind === 'pair' && b) {
     const pa = item.proposals.find((p) => p.actId === a.id)?.disposition;
+    const medicine = isHighAlert(a) || isHighAlert(b) || /\d/.test(`${a.actText}${b.actText}`);
+    const confirmBoth = medicine ? 'Both go on the list: if this is one dose written twice, the patient gets it twice in the record.' : undefined;
+    const q = pairQuestion(item.group, a, b);
     if (item.group === 'changed' || pa?.kind === 'corrected') {
-      options.push({ label: 'Apply the correction', d: sug });
-      options.push({ label: 'Keep the original', d: { [a.id]: { kind: 'approved' }, [b.id]: { kind: 'excluded', reason: 'correction not accepted by the reviewer' } } });
+      options.push({ label: `Use the corrected version (${rowName(b)})`, d: sug });
+      options.push({ label: `Keep the original (${rowName(a)})`, d: { [a.id]: { kind: 'approved' }, [b.id]: { kind: 'excluded', reason: 'correction not accepted by the reviewer' } } });
     } else {
-      options.push({ label: 'Same act: keep one', d: { [a.id]: { kind: 'approved' }, [b.id]: { kind: 'duplicate', of: a.id } } });
+      options.push({ label: `Same act: keep ${rowName(a)}`, d: { [a.id]: { kind: 'approved' }, [b.id]: { kind: 'duplicate', of: a.id } } });
+      options.push({ label: `Same act: keep ${rowName(b)}`, d: { [b.id]: { kind: 'approved' }, [a.id]: { kind: 'duplicate', of: b.id } }, tone: 'secondary' });
+      const lost = onlyIn(b, a);
+      if (lost.length) drops = `Keeping ${rowName(a)} drops “${lost.join(' ')}”, which only the later copy has.`;
     }
-    options.push({ label: 'Two different acts: keep both', d: { [a.id]: pa?.kind === 'corrected' ? { kind: 'approved' } : (sug[a.id] ?? { kind: 'approved' }), [b.id]: { kind: 'approved' } } });
-    options.push({ label: 'Ask the nurse', d: ask([a.id, b.id], 'Are these the same act?'), tone: 'pen' });
+    options.push({ label: 'Two different acts: keep both', d: { [a.id]: pa?.kind === 'corrected' ? { kind: 'approved' } : (sug[a.id] ?? { kind: 'approved' }), [b.id]: { kind: 'approved' } }, confirm: confirmBoth });
+    options.push({ label: `Ask ${q.owner}`, d: ask([a.id, b.id], q.owner, q.question), tone: 'pen' });
   } else {
     const p = item.proposals[0];
+    const owner = ownerOf(a);
+    const flags = errorProneAbbreviations(`${a.actText} ${a.notes}`);
     if (item.group === 'open' || p?.disposition.kind === 'unresolved') {
-      const q = p?.disposition.kind === 'unresolved' ? p.disposition.question : 'Please confirm this entry';
-      options.push({ label: 'Ask the nurse', d: ask([a.id], q), tone: 'pen' });
-      options.push({ label: 'Keep it as written', d: { [a.id]: { kind: 'approved' } } });
+      const q = p?.disposition.kind === 'unresolved' ? p.disposition.question : singleQuestion('open', a, flags);
+      options.push({ label: `Ask ${owner}`, d: ask([a.id], owner, q), tone: 'pen' });
+      // never "keep as written" an error-prone abbreviation or a row with no patient: only the author's answer can settle it
+      if (answer) options.push({ label: `Enter it with ${owner}'s answer`, d: { [a.id]: { kind: 'approved', note: `clarified by ${owner}: ${answer.text}` } } });
     } else {
       options.push({ label: 'Keep it', d: { [a.id]: { kind: 'approved' } } });
-      options.push({ label: 'Ask the nurse', d: ask([a.id], item.group === 'only-earlier' ? 'This act is missing from the later version. Was it removed on purpose?' : 'Please confirm this entry'), tone: 'pen' });
+      options.push({ label: `Ask ${owner}`, d: ask([a.id], owner, singleQuestion(item.group, a, flags)), tone: 'pen' });
     }
     options.push({
-      label: item.group === 'only-earlier' ? 'It was removed on purpose' : 'Not a real act: leave out',
-      d: { [a.id]: { kind: 'excluded', reason: item.group === 'only-earlier' ? 'removed on purpose in the later version' : 'not a real act (reviewer)' } },
+      label: item.group === 'only-earlier' ? 'It was removed on purpose' : 'Do not enter it',
+      d: { [a.id]: { kind: 'excluded', reason: item.group === 'only-earlier' ? 'removed on purpose in the later version' : answer ? `not entered: ${owner} answered “${answer.text}”` : 'not entered (reviewer)' } },
       tone: 'secondary',
     });
   }
   options.forEach((o) => (o.suggested = !item.undecidedByModel && isSug(o.d)));
   const current = JSON.stringify(Object.fromEntries(item.actIds.map((id) => [id, decisions[id]])));
+  const askedHere = item.actIds.some((id) => decisions[id]?.kind === 'unresolved');
 
   return (
-    <div className="flex flex-wrap items-center gap-2.5">
-      {options.map((o) => (
-        <Button
-          key={o.label}
-          tone={o.tone === 'pen' ? 'pen' : o.suggested && !decided ? 'primary' : 'secondary'}
-          onClick={() => onDecide(o.d, `${o.label} (${item.id})`)}
-          aria-pressed={decided && current === JSON.stringify(o.d)}
-        >
-          {decided && current === JSON.stringify(o.d) && <Check size={16} />}
-          {o.label}
-          {o.suggested && <span className="font-normal opacity-75">(suggested)</span>}
-        </Button>
-      ))}
-      <span className="ml-1 hidden items-center text-sm text-ink-faint sm:flex">
-        <ChevronRight size={14} /> moves to the next row
-      </span>
+    <div>
+      {askedHere && (
+        <div className="mb-4">
+          <AnswerBox refId={item.id} owner={(decisions[item.actIds[0]!] as { owner?: string })?.owner ?? ownerOf(a)} />
+        </div>
+      )}
+      {drops && <p className="mb-3 text-[15px] text-pen">{drops}</p>}
+      <div className="flex flex-wrap items-center gap-2.5">
+        {options.map((o) => {
+          const pressed = decided && current === JSON.stringify(o.d);
+          if (confirming === o.label)
+            return (
+              <span key={o.label} className="flex flex-wrap items-center gap-2 rounded-md border border-pen px-3 py-1.5 text-[15px] text-pen">
+                {o.confirm}
+                <Button tone="pen" onClick={() => onDecide(o.d, `${o.label}, confirmed (${item.id})`)}>
+                  Yes, keep both
+                </Button>
+                <Button tone="quiet" onClick={() => setConfirming(null)}>
+                  Cancel
+                </Button>
+              </span>
+            );
+          return (
+            <Button
+              key={o.label}
+              tone={o.tone === 'pen' ? 'pen' : o.suggested && !decided ? 'primary' : 'secondary'}
+              onClick={() => (o.confirm && !pressed ? setConfirming(o.label) : onDecide(o.d, `${o.label} (${item.id})`))}
+              aria-pressed={pressed}
+            >
+              {pressed && <Check size={16} />}
+              {o.label}
+              {o.suggested && <span className="font-normal opacity-75">(suggested)</span>}
+            </Button>
+          );
+        })}
+        <span className="ml-1 hidden items-center text-sm text-ink-faint sm:flex">
+          <ChevronRight size={14} /> moves to the next row
+        </span>
+      </div>
     </div>
   );
 }
@@ -390,15 +501,21 @@ function CloudOffer() {
   const [show, setShow] = useState(false);
   const preview = useMemo(() => (show ? s.previewCloud() : []), [show, s]);
   if (!s.cloudEligible) return null;
-  const n = s.escalated.size;
+  // nothing left to ask about once every disputed row has a decision
+  const open = [...s.escalated.keys()].filter((id) => {
+    const c = s.session!.candidates.find((x) => x.id === id);
+    return c && !(s.session!.decisions[c.a] && s.session!.decisions[c.b]);
+  });
+  if (!open.length) return null;
+  const n = open.length;
   return (
     <div className="border-b border-rule bg-ballpoint-wash/60">
       <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-5 py-4 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="max-w-[80ch] text-[15px]">
-            <strong className="font-semibold">{n} comparisons are disputed</strong>: the on-device model and Lantern&apos;s rules disagreed, or two rows
-            compete for the same act. Because this is the synthetic drill, you can ask a larger model in the cloud for a second opinion. It
-            receives clinical text only: no names, hospital numbers or beds.
+            <strong className="font-semibold">{n} {n === 1 ? 'comparison is' : 'comparisons are'} disputed</strong>: the first AI opinion and Lantern&apos;s rules
+            disagreed, or two rows compete for the same act. Because this is the fictional drill, you can ask a larger model in the cloud for a
+            second opinion. It receives the clinical text of those rows as written, without the name, hospital number and bed columns.
           </p>
           <div className="flex gap-2">
             <Button tone="secondary" onClick={() => setShow((v) => !v)}>

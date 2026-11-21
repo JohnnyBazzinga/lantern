@@ -1,3 +1,5 @@
+import { ownerOf } from './clinical';
+import { identityQuestion, singleQuestion } from './questions';
 import { errorProneAbbreviations, normText, similarity } from './text';
 import type { Act, Disposition, IdentityIssue, MatchCandidate, Relation } from './types';
 
@@ -13,7 +15,7 @@ export type EscalationReason = 'abstained' | 'competing-match' | 'numbers-differ
 export interface ResolvedPair {
   candidate: MatchCandidate;
   relation: Relation;
-  basis: 'exact' | 'local' | 'cloud';
+  basis: 'exact' | 'local' | 'cloud' | 'rule';
   escalate: EscalationReason[];
 }
 
@@ -72,15 +74,38 @@ export function guard(relation: Relation, a: Act, b: Act): { relation: Relation;
   return { relation };
 }
 
-/** The verdict to use for a candidate: cloud second opinion if present, else local, else exact; always guarded. */
+/**
+ * What the rules can decide on their own, with no model at all (imported files on a PC without
+ * Gemini Nano). Safety must not depend on the model being present:
+ *  - a later row that documents a correction ("NOT given", "corr.", "by mistake"…) of a similar entry
+ *    at the same recorded time is a correction, never "typed twice"
+ *  - two rows recorded more than 30 minutes apart with no correction note are separate acts
+ * Anything else stays undecided and goes to the reviewer side by side, with no suggestion.
+ */
+export function ruleVerdict(a: Act, b: Act): { relation: Relation; rule: string } | null {
+  const marked = hasCorrectionNote(b);
+  const gap = a.timeMinutes !== null && b.timeMinutes !== null ? Math.abs(a.timeMinutes - b.timeMinutes) : null;
+  if (marked && (gap === null || gap <= MAX_COPY_GAP_MIN) && similarity(a.actText, b.actText) >= MIN_CORRECTION_SIMILARITY)
+    return { relation: 'amendment', rule: 'the later row documents a correction of this entry' };
+  if (!marked && gap !== null && gap > MAX_COPY_GAP_MIN)
+    return { relation: 'separate', rule: `recorded ${Math.floor(gap / 60)}h${String(gap % 60).padStart(2, '0')} apart with no correction note: a repeated act, not a copy` };
+  return null;
+}
+
+/** The verdict to use for a candidate: cloud second opinion if present, else local, else exact, else the rules alone; always guarded. */
 export function verdict(
   c: MatchCandidate,
   acts: Map<string, Act>,
 ): { relation: Relation; basis: ResolvedPair['basis']; rule?: string } | null {
   if (c.exact) return { relation: 'same', basis: 'exact' };
+  const a = acts.get(c.a)!;
+  const b = acts.get(c.b)!;
   const j = c.cloud ?? c.local;
-  if (!j) return null;
-  const g = guard(j.relation, acts.get(c.a)!, acts.get(c.b)!);
+  if (!j) {
+    const r = ruleVerdict(a, b);
+    return r && { relation: r.relation, basis: 'rule', rule: r.rule };
+  }
+  const g = guard(j.relation, a, b);
   return { relation: g.relation, basis: c.cloud ? 'cloud' : 'local', ...(g.rule && { rule: g.rule }) };
 }
 
@@ -173,7 +198,9 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
       set({
         actId: b.id,
         disposition: { kind: 'duplicate', of: a.id },
-        because: c.exact ? `Copy of ${a.versionLabel} row ${a.row + 2}` : `Same act as ${a.versionLabel} row ${a.row + 2} (${v.basis === 'cloud' ? 'cloud second opinion' : 'on-device'})`,
+        because: c.exact
+          ? `Copy of ${a.versionLabel} row ${a.row + 2}`
+          : `Same act as ${a.versionLabel} row ${a.row + 2} (${v.basis === 'cloud' ? 'cloud second opinion' : v.basis === 'rule' ? 'Lantern’s rules' : 'on-device'})`,
         needsReview: !c.exact || contested,
         group: c.exact ? 'copies' : 'likely-same',
       });
@@ -201,7 +228,7 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
     if (aId) {
       const a = byId.get(aId)!;
       set({ actId: b.id, disposition: { kind: 'approved' }, because: `Possibly the same act as ${a.versionLabel} row ${a.row + 2}; no on-device model was available, decide manually`, needsReview: true, group: 'likely-same', pairWith: a.id });
-    } else set({ actId: b.id, disposition: { kind: 'approved' }, because: 'Only in the later version: a new act', needsReview: true, group: 'only-later' });
+    } else set({ actId: b.id, disposition: { kind: 'approved' }, because: `Not in ${earlier[0]?.versionLabel ?? 'the earlier version'}: keep it if it happened`, needsReview: true, group: 'only-later' });
   }
 
   // 3) open questions override: insufficient verdicts and error-prone abbreviations are never guessed
@@ -209,12 +236,19 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
     const v = verdict(c, byId);
     if (v?.relation !== 'insufficient' || linkedB.has(c.b)) continue;
     const b = byId.get(c.b)!;
-    set({ actId: b.id, disposition: { kind: 'unresolved', owner: owner(b), question: 'Cannot be safely linked to the earlier entry' }, because: (c.cloud ?? c.local)?.evidence || 'Not enough detail to link', needsReview: true, group: 'open' });
+    const a = byId.get(c.a)!;
+    set({
+      actId: b.id,
+      disposition: { kind: 'unresolved', owner: ownerOf(b), question: `${singleQuestion('open', b)} It may be the same act as “${a.actText}” at ${a.eventTime || 'no time'}, but there is not enough detail to link them.`, ref: b.id },
+      because: (c.cloud ?? c.local)?.evidence || 'Not enough detail to link',
+      needsReview: true,
+      group: 'open',
+    });
   }
   for (const act of all) {
     const flags = errorProneAbbreviations(`${act.actText} ${act.notes}`);
     if (flags.length)
-      set({ actId: act.id, disposition: { kind: 'unresolved', owner: owner(act), question: `Clarify ${flags.join('; ')}` }, because: 'Error-prone abbreviation: Lantern never interprets these', needsReview: true, group: 'open' });
+      set({ actId: act.id, disposition: { kind: 'unresolved', owner: ownerOf(act), question: singleQuestion('open', act, flags), ref: act.id }, because: 'Error-prone abbreviation: Lantern never interprets these', needsReview: true, group: 'open' });
   }
 
   // 4) identity issues
@@ -223,7 +257,7 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
       const act = byId.get(id);
       if (!act) continue;
       if (issue.kind === 'no-identity' || issue.kind === 'id-name-conflict') {
-        set({ actId: id, disposition: { kind: 'unresolved', owner: owner(act), question: issue.detail }, because: 'Patient identity cannot be confirmed from the sheet', needsReview: true, group: 'identity' });
+        set({ actId: id, disposition: { kind: 'unresolved', owner: ownerOf(act), question: identityQuestion(issue, act), ref: id }, because: 'Patient identity cannot be confirmed from the sheet', needsReview: true, group: 'identity' });
       } else {
         const prev = proposals.get(id);
         set({ ...(prev ?? { actId: id, disposition: { kind: 'approved' }, because: '' }), because: prev?.because || 'Check the patient identity first', needsReview: true, group: 'identity' });
@@ -233,6 +267,3 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
   return all.map((a) => proposals.get(a.id)!);
 }
 
-function owner(act: Act): string {
-  return act.documentedBy ? `documenting clinician (${act.documentedBy})` : 'nurse in charge';
-}

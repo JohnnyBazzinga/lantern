@@ -83,11 +83,18 @@ mark.diff {
   }
 }
 
+.print-only {
+  display: none;
+}
+
 @media print {
   body {
     background: white;
   }
   .no-print {
     display: none !important;
+  }
+  .print-only {
+    display: block;
   }
 }

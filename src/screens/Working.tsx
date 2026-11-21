@@ -21,6 +21,9 @@ export default function Working() {
   if (!busy) return null;
   const pct = busy.total > 1 ? Math.round((100 * busy.done) / busy.total) : null;
   const sent = entries.filter((e) => e.inferenceSource === 'in_cloud').length;
+  const local = entries.filter((e) => e.inferenceSource === 'on_device').length;
+  const failed = entries.filter((e) => e.inferenceSource === 'error').length;
+  const blocked = entries.filter((e) => e.inferenceSource === 'blocked').length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-paper/95 px-5 pt-[12vh] backdrop-blur-[2px]" role="status" aria-live="polite">
@@ -43,8 +46,10 @@ export default function Working() {
         {entries.length > 0 && (
           <div className="mt-8">
             <p className="mb-2 text-sm text-ink-soft">
-              {entries.length} model {entries.length === 1 ? 'call' : 'calls'} so far, {entries.length - sent} on this device
-              {sent ? `, ${sent} in the cloud (synthetic drill rows only)` : ''}.
+              {local + sent} AI {local + sent === 1 ? 'answer' : 'answers'} so far: {local} on this device
+              {sent ? `, ${sent} in the cloud (fictional drill rows only)` : ''}.
+              {failed > 0 && ` ${failed} ${failed === 1 ? 'call' : 'calls'} failed (a busy model or a stalled answer): Lantern retries once, then leaves that row for you to decide.`}
+              {blocked > 0 && ` ${blocked} blocked: no on-device AI here, so your data was not sent anywhere.`}
             </p>
             <ul className="divide-y divide-rule rounded-md border border-rule bg-sheet">
               {entries.slice(0, 7).map((e) => (
@@ -55,7 +60,9 @@ export default function Working() {
                     {e.inferenceSource === 'on_device' || e.inferenceSource === 'in_cloud' ? (
                       <RanOn source={e.inferenceSource} model={e.model} />
                     ) : (
-                      <span className="text-pen">{e.inferenceSource}</span>
+                      <span className="text-pen" title={e.note}>
+                        {e.inferenceSource === 'error' ? 'failed' : 'blocked, nothing sent'}
+                      </span>
                     )}
                   </span>
                 </li>

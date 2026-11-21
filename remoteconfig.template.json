@@ -20,6 +20,16 @@
       "description": "Lets hospital IT switch the cloud second opinion off centrally.",
       "valueType": "BOOLEAN"
     },
+    "persist_imported_reviews": {
+      "defaultValue": { "value": "true" },
+      "description": "Keep a review of imported files in the browser (deleted after 12 h or at 'Finish and clear') so work survives a closed tab. false = memory only, nothing written to disk.",
+      "valueType": "BOOLEAN"
+    },
+    "allow_export": {
+      "defaultValue": { "value": "true" },
+      "description": "Allow CSV download and printing of the re-entry worklist (each copy is patient-identifiable and outside Lantern's control).",
+      "valueType": "BOOLEAN"
+    },
     "local_batch_rows": {
       "defaultValue": { "value": "5" },
       "description": "Rows per on-device extraction batch (keeps prompts inside Gemini Nano's context window).",

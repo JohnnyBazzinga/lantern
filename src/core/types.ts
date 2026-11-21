@@ -66,10 +66,11 @@ export interface MatchCandidate {
 }
 
 export type Disposition =
-  | { kind: 'approved' }
+  | { kind: 'approved'; /** e.g. the nurse's answer that settled an open question */ note?: string }
   | { kind: 'corrected'; changes: { field: string; from: string; to: string; basis: string }[] }
   | { kind: 'duplicate'; of: string }
-  | { kind: 'unresolved'; owner: string; question: string }
+  /** owner: initials of the nurse who must answer (or "nurse in charge"); ref: the review item it came from, so a pair yields one question */
+  | { kind: 'unresolved'; owner: string; question: string; ref?: string }
   | { kind: 'excluded'; reason: string };
 
 export type IdentityIssueKind = 'name-variant' | 'id-mismatch' | 'id-name-conflict' | 'not-in-census' | 'no-identity';

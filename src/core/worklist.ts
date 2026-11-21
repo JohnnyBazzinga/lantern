@@ -1,41 +1,104 @@
+import { categoryOf, clinicalPartBy, enteredBy, followUp, isHighAlert, relayedFrom, type Category } from './clinical';
+import { nightMinutes } from './text';
 import type { Act, Disposition } from './types';
+
+/**
+ * The re-entry worklist, built from final decisions. Each act appears once; corrections carry old value,
+ * new value and basis; every act says who must enter it (the nurse who documented it for clinical care,
+ * the clinical secretary for admissions and transfers) and carries late-entry wording with its original
+ * date and time. "Ready for re-entry" is not "entered": Lantern never writes to any record system.
+ */
 
 export interface WorklistItem {
   actId: string;
   patientKey: string | null;
+  patientId: string;
   patientName: string;
   bed: string;
+  /** calendar date of the act (YYYY-MM-DD), from the night the outage started; '' when the time is missing */
+  date: string;
   time: string;
+  /** minutes since 12:00 on the night of the outage, for chronological order across midnight */
+  order: number;
   act: string;
   notes: string;
   documentedBy: string;
-  source: string; // "v1 row 9" (+ "v2 row 4")
+  source: string; // "version 1 row 9 + version 2 row 4"
   corrected: { field: string; from: string; to: string; basis: string }[];
+  category: Category;
+  enteredBy: { role: 'clerk' | 'nurse'; who: string };
+  highAlert: boolean;
+  /** initials of the nurse a relayed correction is attributed to ("per KS"), who must confirm it */
+  confirmBy: string | null;
+  /** e.g. the nurse's answer that settled an open question */
+  note?: string;
+  /** an admission row that also records care: who enters the clinical part */
+  clinicalPartBy: string | null;
+  /** e.g. an incident report for a fall */
+  followUp: string | null;
+  lateEntry: string;
+}
+
+export interface WorklistQuestion {
+  ref: string;
+  owner: string;
+  question: string;
+  patientName: string;
+  patientId: string;
+  bed: string;
+  date: string;
+  time: string;
+  rows: { source: string; text: string; notes: string; time: string; by: string }[];
+  actIds: string[];
 }
 
 export interface Worklist {
+  nightOf: string;
   ready: WorklistItem[];
-  unresolved: { actId: string; owner: string; question: string; source: string; act: string }[];
+  questions: WorklistQuestion[];
   excluded: { actId: string; reason: string; source: string }[];
-  /** rows that still have no decision; the worklist cannot be exported while this is non-zero */
+  /** rows that still have no decision; the list is incomplete while this is non-zero */
   undecided: string[];
 }
 
 const src = (a: Act) => `${a.versionLabel} row ${a.row + 2}`;
 
-/**
- * Builds the re-entry worklist from final decisions. Each act appears once; duplicates point to the
- * row they repeat; corrections carry old value, new value and basis. "Ready for re-entry" is not
- * "entered in the EHR": Lantern never writes to any record system.
- */
-export function buildWorklist(acts: Act[], decisions: Map<string, Disposition | undefined>): Worklist {
+/** The night the outage started: by default 12 hours before the review began (a morning review is about last night). */
+export function defaultNightOf(startedAt: number | string): string {
+  const d = new Date(new Date(startedAt).getTime() - 12 * 3600_000);
+  return isoDate(d);
+}
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Calendar date of a clock time on a night shift that started on `nightOf` (times before noon are the next day). */
+export function dateFor(nightOf: string, time: string): { date: string; order: number } {
+  const m = time ? nightMinutes(time) : null;
+  if (m === null) return { date: '', order: Number.MAX_SAFE_INTEGER };
+  const [y, mo, d] = nightOf.split('-').map(Number);
+  const day = new Date(y!, mo! - 1, d! + (m >= 12 * 60 ? 1 : 0));
+  return { date: isoDate(day), order: m };
+}
+
+export function formatDate(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y!, m! - 1, d!).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+export function buildWorklist(acts: Act[], decisions: Map<string, Disposition | undefined>, opts: { nightOf?: string } = {}): Worklist {
+  const nightOf = opts.nightOf ?? defaultNightOf(Date.now());
   const byId = new Map(acts.map((a) => [a.id, a]));
-  const wl: Worklist = { ready: [], unresolved: [], excluded: [], undecided: [] };
+  const wl: Worklist = { nightOf, ready: [], questions: [], excluded: [], undecided: [] };
   const dupsOf = new Map<string, string[]>();
   for (const a of acts) {
     const d = decisions.get(a.id);
     if (d?.kind === 'duplicate') dupsOf.set(d.of, [...(dupsOf.get(d.of) ?? []), a.id]);
   }
+  const questions = new Map<string, WorklistQuestion>();
+
   for (const a of acts) {
     const d = decisions.get(a.id);
     if (!d) {
@@ -48,48 +111,133 @@ export function buildWorklist(acts: Act[], decisions: Map<string, Disposition | 
       continue;
     }
     if (d.kind === 'unresolved') {
-      wl.unresolved.push({ actId: a.id, owner: d.owner, question: d.question, source: src(a), act: a.actText });
+      // one question per issue: both rows of a pair share the review item's ref
+      const ref = d.ref ?? `${d.owner}|${d.question}`;
+      const q = questions.get(ref);
+      const row = { source: src(a), text: a.actText, notes: a.notes, time: a.eventTime, by: a.documentedBy };
+      if (q) {
+        q.rows.push(row);
+        q.actIds.push(a.id);
+        if (!q.time && a.eventTime) Object.assign(q, { time: a.eventTime, date: dateFor(nightOf, a.eventTime).date });
+      } else
+        questions.set(ref, {
+          ref,
+          owner: d.owner,
+          question: d.question,
+          patientName: a.patientName,
+          patientId: a.patientId,
+          bed: a.bed,
+          date: dateFor(nightOf, a.eventTime).date,
+          time: a.eventTime,
+          rows: [row],
+          actIds: [a.id],
+        });
       continue;
     }
     const corrected = d.kind === 'corrected' ? d.changes : [];
     const time = corrected.find((c) => c.field === 'time')?.to ?? a.eventTime;
     const actText = corrected.find((c) => c.field !== 'time')?.to ?? a.actText;
     const also = (dupsOf.get(a.id) ?? []).map((id) => byId.get(id)).filter((x): x is Act => !!x);
+    const correctionRow = corrected.length ? also.find((x) => x.notes || x.actText) : undefined;
+    const { date, order } = dateFor(nightOf, time);
+    const view = { actText, notes: a.notes, documentedBy: a.documentedBy };
+    const by = enteredBy(view);
+    const source = [src(a), ...also.map(src)].join(' + ');
     wl.ready.push({
       actId: a.id,
       patientKey: a.patientKey,
+      patientId: a.patientId,
       patientName: a.patientName,
       bed: a.bed,
+      date,
       time,
+      order,
       act: actText,
       notes: a.notes,
       documentedBy: a.documentedBy,
-      source: [src(a), ...also.map(src)].join(' + '),
+      source,
       corrected,
+      category: categoryOf(view),
+      enteredBy: by,
+      highAlert: isHighAlert(view),
+      confirmBy: correctionRow ? relayedFrom(correctionRow) : null,
+      ...(d.kind === 'approved' && d.note && { note: d.note }),
+      clinicalPartBy: clinicalPartBy(view),
+      followUp: followUp(view),
+      lateEntry: `Late entry after system downtime. Original time ${time ? `${formatDate(date)} ${time}` : 'not recorded'}${
+        a.documentedBy ? `, documented by ${a.documentedBy}` : ''
+      } on the downtime log (${source}).${corrected.length ? ' Corrected in the later copy.' : ''}`,
     });
   }
-  wl.ready.sort((x, y) => (x.patientKey ?? '').localeCompare(y.patientKey ?? '') || x.time.localeCompare(y.time));
+  wl.ready.sort(
+    (x, y) =>
+      Number(x.enteredBy.role === 'nurse') - Number(y.enteredBy.role === 'nurse') ||
+      x.enteredBy.who.localeCompare(y.enteredBy.who) ||
+      (x.patientKey ?? x.patientName).localeCompare(y.patientKey ?? y.patientName) ||
+      x.order - y.order,
+  );
+  wl.questions = [...questions.values()].sort((x, y) => x.owner.localeCompare(y.owner) || x.patientName.localeCompare(y.patientName));
   return wl;
 }
 
-export function worklistCsv(wl: Worklist): string {
+export function worklistCsv(wl: Worklist, opts: { drill?: boolean } = {}): string {
   const esc = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-  const head = ['Status', 'Hospital number', 'Patient', 'Bed', 'Time', 'Act', 'Notes', 'Documented by', 'Correction', 'Source rows', 'Owner / question'];
+  const head = [
+    'Status',
+    'To be entered by',
+    'Category',
+    'Date',
+    'Time',
+    'Hospital number',
+    'Patient',
+    'Bed',
+    'Act',
+    'Notes',
+    'Documented by',
+    'Correction',
+    'Late-entry note',
+    'Source rows',
+    'Question',
+  ];
+  const status = (r: WorklistItem) => (r.confirmBy ? `Ready, ${r.confirmBy} to confirm the correction` : 'Ready for re-entry');
   const rows = [
     ...wl.ready.map((r) => [
-      'Ready for re-entry',
-      r.patientKey ?? '',
+      status(r),
+      r.enteredBy.who,
+      r.category,
+      r.date,
+      r.time,
+      r.patientId,
       r.patientName,
       r.bed,
-      r.time,
       r.act,
-      r.notes,
+      [r.notes, r.note, r.clinicalPartBy && `clinical part entered by ${r.clinicalPartBy}`, r.followUp].filter(Boolean).join(' | '),
       r.documentedBy,
       r.corrected.map((c) => `${c.field}: ${c.from} → ${c.to} (${c.basis})`).join('; '),
+      r.lateEntry,
       r.source,
       '',
     ]),
-    ...wl.unresolved.map((u) => ['Open question', '', '', '', '', u.act, '', '', '', u.source, `${u.owner}: ${u.question}`]),
+    ...wl.questions.map((q) => [
+      `Question for ${q.owner}`,
+      q.owner,
+      '',
+      q.date,
+      q.time,
+      q.patientId,
+      q.patientName,
+      q.bed,
+      q.rows.map((x) => x.text).join(' / '),
+      '',
+      q.rows.map((x) => x.by).filter(Boolean).join(', '),
+      '',
+      '',
+      q.rows.map((x) => x.source).join(' + '),
+      q.question,
+    ]),
   ];
-  return [head, ...rows].map((r) => r.map(esc).join(',')).join('\n') + '\n';
+  const lines = [head, ...rows].map((r) => r.map(esc).join(','));
+  if (opts.drill) lines.unshift('# Lantern drill: fictional patients, not a real record');
+  if (wl.undecided.length) lines.unshift(`# INCOMPLETE: ${wl.undecided.length} rows still have no decision`);
+  return lines.join('\n') + '\n';
 }

@@ -8,7 +8,10 @@ import type { Act, AuditEvent, Disposition, SourceFile } from '../core/types';
 import { loadDrillFiles, importUserFile } from './files';
 import { askSecondOpinion, mapFile, reconcileFiles, secondOpinionPreview, type Progress } from './pipeline';
 import { buildItems, isDecided, suggested, type ReviewItem } from './review';
-import { deleteSession, latestSession, saveSession, type SessionData } from './store';
+import { clearAllSessions, latestSession, saveSession, type SessionData } from './store';
+import { ownerOf } from '../core/clinical';
+import { identityQuestion } from '../core/questions';
+import { defaultNightOf } from '../core/worklist';
 
 type Busy = { stage: string; done: number; total: number } | null;
 
@@ -36,8 +39,12 @@ interface SessionApi {
   decideIdentity: (issueId: string, choice: 'census' | 'as-written' | 'ask') => void;
   acceptGroup: (group: ReviewGroup) => void;
   toggleEntered: (actId: string) => void;
+  recordAnswer: (ref: string, text: string) => void;
+  setNightOf: (date: string) => void;
+  setReviewer: (initials: string) => void;
   finish: () => void;
-  reset: () => Promise<void>;
+  /** deletes every saved review in this browser; resolves to how many remain (0 = verified) */
+  reset: () => Promise<number>;
 }
 
 const Ctx = createContext<SessionApi | null>(null);
@@ -67,17 +74,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void latestSession().then((s) => setResumable(s && s.acts.length ? s : null));
   }, [refreshLocal]);
 
-  // persist every change
+  // persist every change, unless hospital IT has turned off saving imported (patient) reviews to disk
   useEffect(() => {
-    if (session) void saveSession(session);
-  }, [session]);
+    if (!session) return;
+    if (session.kind === 'import' && config && !config.persistImportedReviews) return;
+    void saveSession({ ...session, updatedAt: Date.now() });
+  }, [session, config]);
 
   const progress: Progress = useCallback((p) => setBusy(p), []);
   const cloudModel = config?.cloudModel ?? RC_DEFAULTS.cloud_model;
 
   const audit = (s: SessionData, action: string, targetIds: string[], extra: Partial<AuditEvent> = {}): AuditEvent[] => [
     ...s.audit,
-    { seq: ++seq.current, at: now(), actor: 'reviewer', action, targetIds, ...extra },
+    { seq: ++seq.current, at: now(), actor: s.reviewer ? `reviewer ${s.reviewer}` : 'reviewer', action, targetIds, ...extra },
   ];
 
   const begin = async (kind: SessionData['kind'], files: SourceFile[]) => {
@@ -104,6 +113,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       audit: [{ seq: ++seq.current, at: now(), actor: 'lantern', action: `opened ${files.map((f) => f.name).join(', ')}`, targetIds: [] }],
       cloudAsked: false,
       entered: {},
+      nightOf: defaultNightOf(Date.now()),
+      answers: {},
     });
   };
 
@@ -210,10 +221,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!s) return s;
       const issue = s.identity.find((i) => i.id === issueId);
       const decisions = { ...s.decisions };
+      // settling the identity releases the rows that were waiting for it: they go back to the reviewer
+      if (choice !== 'ask')
+        for (const [id, d] of Object.entries(decisions)) if (d.kind === 'unresolved' && d.ref === `identity:${issueId}`) delete decisions[id];
+      // the identity question travels with every row of the issue, and blocks them until it is answered
       if (choice === 'ask' && issue)
         for (const id of issue.actIds) {
           const act = s.acts.find((a) => a.id === id);
-          decisions[id] = { kind: 'unresolved', owner: act?.documentedBy ? `documenting clinician (${act.documentedBy})` : 'nurse in charge', question: issue.detail };
+          if (act) decisions[id] = { kind: 'unresolved', owner: ownerOf(act), question: identityQuestion(issue, act), ref: `identity:${issue.id}` };
         }
       return { ...s, decisions, identityDecisions: { ...s.identityDecisions, [issueId]: choice }, audit: audit(s, `identity ${choice}: ${issue?.detail ?? issueId}`, issue?.actIds ?? []) };
     });
@@ -226,15 +241,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return { ...s, decisions: { ...s.decisions, ...d }, audit: audit(s, `accepted Lantern's suggestion for ${todo.length} items in “${group}”`, todo.flatMap((i) => i.actIds)) };
     });
 
-  const toggleEntered = (actId: string) => setSession((s) => s && { ...s, entered: { ...s.entered, [actId]: !s.entered[actId] } });
+  const toggleEntered = (actId: string) =>
+    setSession((s) => {
+      if (!s) return s;
+      const entered = { ...s.entered };
+      if (entered[actId]) delete entered[actId];
+      else entered[actId] = { at: now(), ...(s.reviewer && { by: s.reviewer }) };
+      return { ...s, entered, audit: audit(s, entered[actId] ? 'ticked as entered in the record' : 'unticked', [actId]) };
+    });
+  const recordAnswer = (ref: string, text: string) =>
+    setSession((s) => s && { ...s, answers: { ...s.answers, [ref]: { text, at: now(), ...(s.reviewer && { recordedBy: s.reviewer }) } }, audit: audit(s, `recorded the nurse's answer: ${text}`, [ref]) });
+  const setNightOf = (date: string) => setSession((s) => s && { ...s, nightOf: date, audit: audit(s, `set the night of the outage to ${date}`, []) });
+  const setReviewer = (initials: string) => setSession((s) => s && { ...s, reviewer: initials.trim().toUpperCase().slice(0, 6) || undefined });
   const finish = () => setSession((s) => s && { ...s, finishedAt: s.finishedAt ?? Date.now(), audit: audit(s, 'prepared the re-entry worklist', []) });
   const resume = () => {
     if (resumable) setSession(resumable);
   };
   const reset = async () => {
-    if (session) await deleteSession(session.id);
     setSession(null);
     setResumable(null);
+    return clearAllSessions();
   };
 
   const decidedCount = session ? session.acts.filter((a) => session.decisions[a.id]).length : 0;
@@ -263,6 +289,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     decideIdentity,
     acceptGroup,
     toggleEntered,
+    recordAnswer,
+    setNightOf,
+    setReviewer,
     finish,
     reset,
   };

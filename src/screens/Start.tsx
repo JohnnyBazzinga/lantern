@@ -60,12 +60,25 @@ export default function Start() {
             <Button onClick={() => void s.startDrill()} disabled={!!s.busy} className="px-5 py-3 text-base">
               Start the Ward 7B drill
             </Button>
-            {s.resumable && (
-              <Button tone="secondary" onClick={s.resume}>
-                Resume your last review
-              </Button>
-            )}
           </div>
+          {s.resumable && (
+            <div className="mt-5 max-w-[62ch] rounded-md border border-rule-strong bg-sheet px-4 py-3 text-[15px]">
+              <p>
+                <strong className="font-semibold">A review is saved in this browser:</strong> {s.resumable.title.toLowerCase()}, started{' '}
+                {new Date(s.resumable.createdAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+                {s.resumable.reviewer ? ` by ${s.resumable.reviewer}` : ''}.{' '}
+                {s.resumable.kind === 'import' && 'Anyone using this browser profile can open it. It is deleted automatically 12 hours after the last change.'}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button tone="secondary" onClick={s.resume}>
+                  Resume it
+                </Button>
+                <Button tone="quiet" onClick={() => void s.reset()}>
+                  Delete it from this PC
+                </Button>
+              </div>
+            </div>
+          )}
           <p className="mt-3 text-sm text-ink-faint">The drill uses a fictional ward and fictional patients. It takes about ten minutes.</p>
 
           <div className="mt-8 max-w-[62ch]">
@@ -116,7 +129,17 @@ export default function Start() {
 
       <footer className="mt-20 max-w-[70ch] text-sm text-ink-faint">
         Lantern is a documentation aid for re-entering records after downtime. It does not diagnose, dose or triage, and it never writes
-        into any record system. <a className="underline underline-offset-2" href="#/lab">Diagnostics</a>
+        into any record system. It is an open-source project built for Google&apos;s #BuildHybridAI hackathon, not a hospital product, and it has
+        not been approved for use with real patients.{' '}
+        <a className="underline underline-offset-2" href="https://github.com/JohnnyBazzinga/lantern/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">
+          Data protection
+        </a>
+        <a className="ml-4 underline underline-offset-2" href="https://github.com/JohnnyBazzinga/lantern" target="_blank" rel="noreferrer">
+          Source code
+        </a>
+        <a className="ml-4 underline underline-offset-2" href="#/lab">
+          Diagnostics for IT
+        </a>
       </footer>
     </main>
   );
@@ -127,28 +150,30 @@ function Readiness({ local, preparing, onPrepare }: { local: ReturnType<typeof u
   if (local === 'available')
     return (
       <Notice tone="scrub">
-        <strong className="font-semibold">Gemini Nano is ready on this device.</strong> Lantern can read and compare the sheets here, with no
-        network at all.
+        <strong className="font-semibold">The on-device AI (Gemini Nano) is ready on this PC.</strong> Lantern can read and compare the sheets
+        here, with no network at all.
       </Notice>
     );
   if (local === 'downloadable' || local === 'downloading')
     return (
       <Notice>
         <p>
-          <strong className="font-semibold">Gemini Nano can run on this device</strong> once Chrome has downloaded it. Do this before an
-          outage: afterwards it works offline.
+          <strong className="font-semibold">The on-device AI is not on this PC yet.</strong> Chrome can download Google&apos;s Gemini Nano model
+          (about 4 GB) so that Lantern reads and compares the sheets here, with no network. Do it before an outage. On a managed hospital PC,
+          ask IT: their Chrome policies decide whether it is allowed.
         </p>
         <div className="mt-3 flex items-center gap-3">
           <Button tone="secondary" onClick={onPrepare} disabled={preparing !== null}>
-            {preparing === null ? 'Prepare this device' : `Downloading ${Math.round(preparing * 100)}%`}
+            {preparing === null ? 'Download the on-device AI' : `Downloading ${Math.round(preparing * 100)}%`}
           </Button>
         </div>
       </Notice>
     );
   return (
     <Notice>
-      <strong className="font-semibold">This browser has no on-device model.</strong> The drill still works: its synthetic rows are compared
-      in the cloud instead, and every call says where it ran. Your own files would stay here and you would compare them by hand.{' '}
+      <strong className="font-semibold">This browser has no on-device AI.</strong> The drill still works: its fictional rows are compared in
+      the cloud instead, and every call says where it ran. Your own files would stay on this PC: Lantern&apos;s rules still find copies,
+      corrections, repeated doses and identity problems, and you decide the rest.{' '}
       <a className="underline underline-offset-2" href="https://developer.chrome.com/docs/ai/get-started" target="_blank" rel="noreferrer">
         Gemini Nano needs desktop Chrome
       </a>

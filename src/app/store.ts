@@ -26,9 +26,25 @@ export interface SessionData {
   identityDecisions: Record<string, 'census' | 'as-written' | 'ask'>;
   audit: AuditEvent[];
   cloudAsked: boolean;
-  /** re-entry progress on the worklist (ticked by the reviewer as items are typed into the EHR) */
-  entered: Record<string, boolean>;
+  /** re-entry progress on the worklist: when each act was ticked as typed into the record, and by whom */
+  entered: Record<string, Entered | boolean>;
+  /** the date the outage night started (YYYY-MM-DD); clock times before noon belong to the next day */
+  nightOf?: string;
+  /** initials of the person reviewing, recorded with every tick and decision */
+  reviewer?: string;
+  /** answers received to questions for the nurses, by question ref */
+  answers?: Record<string, { text: string; at: string; recordedBy?: string }>;
+  /** last change, for automatic expiry of imported reviews on shared PCs */
+  updatedAt?: number;
 }
+
+export interface Entered {
+  at: string;
+  by?: string;
+}
+
+/** Imported reviews hold patient data: on a shared ward PC they are deleted automatically after this. */
+export const IMPORT_RETENTION_MS = 12 * 3600_000;
 
 class LanternDb extends Dexie {
   sessions!: Table<SessionData, string>;
@@ -48,11 +64,25 @@ export async function saveSession(s: SessionData): Promise<void> {
   }
 }
 
+/** The newest saved review, after deleting imported reviews older than the retention window. */
 export async function latestSession(): Promise<SessionData | undefined> {
   try {
-    return await db.sessions.orderBy('createdAt').last();
+    const all = await db.sessions.toArray();
+    const expired = all.filter((x) => x.kind === 'import' && Date.now() - (x.updatedAt ?? Date.parse(x.createdAt)) > IMPORT_RETENTION_MS);
+    if (expired.length) await db.sessions.bulkDelete(expired.map((x) => x.id));
+    return all.filter((x) => !expired.includes(x)).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
   } catch {
     return undefined;
+  }
+}
+
+/** Removes every saved review from this browser (the end-of-case action on a shared PC). Returns how many are left. */
+export async function clearAllSessions(): Promise<number> {
+  try {
+    await db.sessions.clear();
+    return await db.sessions.count();
+  } catch {
+    return -1;
   }
 }
 

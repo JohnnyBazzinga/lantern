@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '../app/session';
 import { propose, type Proposal } from '../core/reconcile';
-import { scoreDrill, type AnswerKey, type DrillScore } from '../core/score';
+import { keyIds, scoreDrill, type AnswerKey, type DrillScore } from '../core/score';
 import { Button, LanternMark, RanOn } from '../ui/kit';
 import { useLedgerEntries } from './Review';
 
@@ -75,17 +75,23 @@ export default function Result({ onBack }: { onBack: () => void }) {
                 </tr>
               </thead>
               <tbody>
-                <Row label="Acts entered (27 expected)" v={(x) => String(x.worklist.ready)} s={scores} good={(x) => x.worklist.ready === 27} />
+                <Row label="Acts ready for re-entry (27 in the answer key)" v={(x) => String(x.worklist.ready)} s={scores} good={(x) => x.worklist.ready + x.withNurse.length === 27} />
+                <Row label="Waiting for a nurse's answer (not a loss)" v={(x) => String(x.withNurse.length)} s={scores} good={() => true} />
                 <Row label="Acts lost" v={(x) => String(x.actsLost.length)} s={scores} good={(x) => x.actsLost.length === 0} />
                 <Row label="Acts entered twice" v={(x) => String(x.enteredTwice.length)} s={scores} good={(x) => x.enteredTwice.length === 0} />
                 <Row label="Unclear entries entered as certain" v={(x) => String(x.ambiguousEntered.length)} s={scores} good={(x) => x.ambiguousEntered.length === 0} />
-                <Row label="Documented corrections applied" v={(x) => x.amendmentsFound} s={scores} good={(x) => x.raw.amend === 3} />
+                <Row label="Documented corrections applied or sent to the nurse" v={(x) => x.amendmentsFound} s={scores} good={(x) => x.raw.amend === 3} />
                 <Row label="Repeated doses wrongly merged" v={(x) => String(x.falseMerges.length)} s={scores} good={(x) => x.falseMerges.length === 0} />
                 <Row label="Questions sent back to the ward" v={(x) => x.openQuestionsKept} s={scores} good={(x) => x.raw.open === 2} />
                 <Row label="Patient identity problems caught" v={(x) => x.identityFound} s={scores} good={(x) => x.raw.idFound === 4} />
               </tbody>
             </table>
           </div>
+          <p className="mt-3 text-sm text-ink-soft">
+            This compares decisions with the answer key. It does not count what is in the record: on the worklist you ticked{' '}
+            {Object.keys(session.entered).length} acts as entered.
+          </p>
+          <Differences you={scores.you} />
           <ul className="mt-6 max-w-[70ch] list-disc space-y-1.5 pl-5 text-ink-soft">
             <li>Using the latest file loses the fall at 23:40 and the neuro observations that followed: they were deleted when the sheet was sorted.</li>
             <li>Merging identical rows still enters re-typed acts twice and misses that enoxaparin at 02:40 was not given.</li>
@@ -111,6 +117,44 @@ export default function Result({ onBack }: { onBack: () => void }) {
         </p>
       </section>
     </main>
+  );
+}
+
+/** Item by item: what differed from the answer key, so the reviewer can learn from it or disagree with the key. */
+function Differences({ you }: { you: DrillScore }) {
+  const s = useSession();
+  const session = s.session!;
+  const [key, setKey] = useState<AnswerKey | null>(null);
+  useEffect(() => {
+    void fetch('/fixtures/drill/answer-key.json').then((r) => r.json()).then((k) => setKey(k as AnswerKey));
+  }, []);
+  if (!key) return null;
+  const ids = keyIds(key, session.acts);
+  const actFor = (keyRow: string) => session.acts.find((a) => ids.get(a.id) === keyRow);
+  const line = (keyRow: string) => {
+    const a = actFor(keyRow);
+    return a ? `${a.patientName || `bed ${a.bed}`}, ${a.eventTime || 'no time'}: ${a.actText}` : keyRow;
+  };
+  const groups = [
+    { title: 'Lost (not on the list, not asked)', rows: you.actsLost, tone: 'text-pen' },
+    { title: 'Entered twice', rows: you.enteredTwice, tone: 'text-pen' },
+    { title: 'Waiting for a nurse', rows: you.withNurse, tone: 'text-ink-soft' },
+    { title: 'Unclear entries entered as certain', rows: you.ambiguousEntered, tone: 'text-pen' },
+  ].filter((g) => g.rows.length);
+  if (!groups.length) return <p className="mt-4 text-[15px] text-scrub">Every act in the answer key is on your list once, or waiting for a nurse.</p>;
+  return (
+    <div className="mt-5 space-y-3">
+      {groups.map((g) => (
+        <div key={g.title}>
+          <h3 className={`font-semibold ${g.tone}`}>{g.title}</h3>
+          <ul className="mt-1 space-y-0.5 font-mono text-[14px]">
+            {g.rows.map((r) => (
+              <li key={r}>{line(r)}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
