@@ -42,6 +42,7 @@ export default function Lab() {
   const [s3cloud, setS3cloud] = useState<SpikeState>(idle);
   const [s4, setS4] = useState<SpikeState>(idle);
   const [simulateNoNano, setSimulateNoNano] = useState(false);
+  const [prepareError, setPrepareError] = useState<string | null>(null);
 
   const refreshEnv = useCallback(async () => setEnv(await environmentReport()), []);
 
@@ -62,13 +63,14 @@ export default function Lab() {
   const cloudModel = config?.cloudModel ?? 'gemini-3.8-flash';
 
   async function prepare() {
+    setPrepareError(null);
     setProgress(0);
     try {
       await prepareLocalModel(mapColumnsTask, (p) => setProgress(p));
       setProgress(1);
     } catch (e) {
       setProgress(null);
-      alert(String(e));
+      setPrepareError(e instanceof Error ? e.message : String(e));
     }
     void refreshEnv();
   }
@@ -285,6 +287,8 @@ export default function Lab() {
             Refresh
           </button>
         </div>
+        {prepareError && <p className="sm:col-span-2 text-sm text-alert">{prepareError}</p>}
+        {env && (!env.promptApi || env.availability === 'unavailable') && <NanoHelp env={env} />}
       </section>
 
       <Spike
@@ -388,6 +392,36 @@ export default function Lab() {
 const btn =
   'inline-flex items-center gap-2 rounded-lg bg-lamp px-3 py-2 text-sm font-medium text-ink-950 hover:brightness-110 disabled:opacity-50';
 const btnGhost = 'inline-flex items-center gap-2 rounded-lg border border-ink-600 px-3 py-2 text-sm hover:bg-ink-800';
+
+function NanoHelp({ env }: { env: EnvironmentReport }) {
+  return (
+    <div className="sm:col-span-2 rounded-lg border border-lamp/40 bg-lamp/5 p-3 text-sm leading-relaxed">
+      <p className="mb-2 font-medium text-lamp">
+        {env.promptApi
+          ? 'Chrome exposes the Prompt API, but reports Gemini Nano as unavailable on this device.'
+          : 'This browser does not expose Chrome’s built-in Prompt API (no LanguageModel global).'}
+      </p>
+      <ol className="list-decimal space-y-1 pl-5 text-ink-200">
+        <li>
+          Use desktop Chrome and update it at <code className="font-mono">chrome://settings/help</code>
+          {env.chromeMajor ? ` (this is Chrome ${env.chromeMajor})` : ' (this does not look like Chrome)'}.
+        </li>
+        <li>
+          In <code className="font-mono">chrome://flags</code> set <code className="font-mono">#optimization-guide-on-device-model</code> to
+          “Enabled BypassPerfRequirement” and <code className="font-mono">#prompt-api-for-gemini-nano</code> to “Enabled”, then relaunch.
+        </li>
+        <li>
+          Check <code className="font-mono">chrome://on-device-internals</code> (Model Status). Gemini Nano needs ~22&nbsp;GB of free disk and
+          a GPU with more than 4&nbsp;GB VRAM, or 16&nbsp;GB RAM and 4 CPU cores.
+        </li>
+        <li>Come back, press Refresh, then “Prepare Gemini Nano”.</li>
+      </ol>
+      <p className="mt-2 text-xs text-ink-400">
+        Until then Lantern refuses to process imported files here: patient data is never sent to the cloud as a fallback.
+      </p>
+    </div>
+  );
+}
 
 function Kv({ k, v }: { k: string; v: string | number }) {
   return (
