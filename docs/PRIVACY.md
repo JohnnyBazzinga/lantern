@@ -6,7 +6,15 @@ There is **no real patient data anywhere in this repository**. The drill and the
 
 ## What never leaves the device
 
-- **Imported files.** They are parsed in the browser (SheetJS) and kept in this browser's IndexedDB (`src/app/store.ts`), and are never uploaded or synced. The same goes for their acts, candidate pairs, decisions, audit trail and the worklist.
+- **Imported files.** They are parsed in the browser (SheetJS) and are never uploaded or synced. The same goes for their acts, candidate pairs, decisions, answers, audit trail and the worklist.
+
+## What stays on the PC, and for how long
+
+A ward PC is often shared, so a review of imported files must not outlive the work:
+- **Saved in this browser** (IndexedDB, `src/app/store.ts`) so that work survives a closed tab, and **deleted automatically 12 hours after the last change**. Hospital IT can switch saving off entirely with the Remote Config parameter `persist_imported_reviews`: the review then lives in memory only.
+- **"Finish and clear this PC"** on the worklist, and **"Delete it from this PC"** on the start page, delete every saved review in the browser. The same happens on "Start over".
+- **Exports are outside Lantern's control.** A downloaded CSV or a printout carries patient names. The worklist says so next to the buttons, and the file names are marked `DRILL-` or `INCOMPLETE-`. IT can disable CSV download and printing with `allow_export`.
+- Resolução do Conselho de Ministros 41/2018 asks not to keep personal data in the browser beyond the session. For a hospital deployment, add Chrome's `BrowsingDataLifetime` or ephemeral profiles, and individual logins rather than a shared one. Lantern has no authentication of its own; the initials typed on the worklist are recorded in the audit trail but prove nothing about identity.
 - **Every prompt built from an imported file.** It runs on the `user-local` route (`ONLY_ON_DEVICE`) on Gemini Nano.
 - **Model availability is checked before every such call.** `assertLocalReady()` requires `LanguageModel.availability()` to return `available`. This works around firebase-js-sdk issue #10635, where `ONLY_ON_DEVICE` reaches the cloud when `LanguageModel` is missing. If the model is not ready, the call is recorded as `blocked` and nothing is sent. The reviewer maps and compares by hand, and code still finds identical rows and identity problems.
 

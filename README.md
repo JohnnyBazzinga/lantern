@@ -61,6 +61,14 @@ These come from a **synthetic drill on the developer's laptop**: n = 1 machine, 
 - With Gemini Nano, the whole comparison took about 21 s, plus 12.7–15.1 s of column mapping, with no cloud call.
 - Nano alone got 7 of 11 pair relations right. Lantern's rules brought that to 11/11: three documented corrections were promoted to amendments, and one genuine repeat dose was separated by time.
 
+### Simulated usability study
+
+Four LLM-simulated participants on two model families worked through the product: a clinical secretary, an NHS ward clerk, a nurse in charge and a hospital security lead. Two desk reviews covered who re-enters what after downtime, and the adoption constraints. All four found the same severity-4 problem: with no on-device model, a documented refusal could reach the list as given. It is fixed, along with 16 other findings. The study also changed the workflow: Rita now prepares the re-entry, enters admissions and transfers herself, and hands each nurse a list of their own late entries, as published downtime procedures and the Ordem dos Enfermeiros require. These are hypotheses from simulated users, not usability evidence. See [docs/evaluation/usability-simulated-2026-11-21.md](docs/evaluation/usability-simulated-2026-11-21.md).
+
+## Where it can run
+
+On-device inference needs desktop Chrome (148 or later) on Windows 10/11, macOS or Linux. The machine needs more than 4 GB of VRAM, or 16 GB RAM and 4 CPU cores, plus 22 GB of free disk and a one-time model download of about 4 GB, done before an outage. The SPMS 2024 workstation specification (32 GB RAM, 16+ cores) qualifies; older 8 GB PCs, thin clients and Chrome published through Citrix/VDI do not. Hardened Chrome baselines disable the model (`GenAILocalFoundationalModelSettings`), so IT must allow it. Without the model, Lantern still runs: its rules find copies, corrections, repeated doses and identity problems, and the reviewer decides the rest.
+
 ## Privacy
 
 - Imported files are parsed in the browser and stay in its IndexedDB. Nothing about them is uploaded or synced.
