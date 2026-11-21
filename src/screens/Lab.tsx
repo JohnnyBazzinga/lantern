@@ -302,7 +302,7 @@ export default function Lab() {
       lines.push('   ✓ Nano right · ↻ fixed by a rule · ✗ still wrong');
       if (r.cloud)
         lines.push(
-          `SECOND OPINION: ${r.cloud.calls} cloud calls, ${r.cloud.agreeWithGold} agree with the key, corrected ${r.cloud.corrected} local errors, introduced ${r.cloud.introducedErrors} new errors`,
+          `SECOND OPINION: ${r.cloud.calls} cloud calls. Raw answers: ${r.cloud.agreeWithGold}/${r.cloud.calls} match the key, ${r.cloud.corrected} fix a local error, ${r.cloud.introducedErrors} contradict a right local answer. After Lantern's rules: ${r.cloud.agreeAfterGuard}/${r.cloud.calls} match, ${r.cloud.introducedAfterGuard} new errors.`,
         );
       lines.push('', 'METHOD                                   | same-act recall | precision | false merges | corrections | false corr. | open Qs | v1-only kept | identity | ready (27) | open (2)');
       for (const m of r.methods) {

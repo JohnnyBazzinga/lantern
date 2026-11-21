@@ -34,7 +34,8 @@ export interface BenchResult {
     judged: number;
   };
   pairs: { pair: string; gold: string; local: string; localGuarded: string; cloud: string; rule: string }[];
-  cloud: { calls: number; corrected: number; introducedErrors: number; agreeWithGold: number } | null;
+  /** raw = the cloud's own answer, guarded = after Lantern's deterministic rules (what the reviewer sees) */
+  cloud: { calls: number; corrected: number; introducedErrors: number; agreeWithGold: number; agreeAfterGuard: number; introducedAfterGuard: number } | null;
   ms: { mapping: number; reconcile: number };
 }
 
@@ -128,6 +129,10 @@ export async function runDrillBench(o: {
           corrected: withCloud.filter((c) => !ok(c.local?.relation, gold(c)) && ok(c.cloud!.relation, gold(c))).length,
           introducedErrors: withCloud.filter((c) => ok(c.local?.relation, gold(c)) && !ok(c.cloud!.relation, gold(c))).length,
           agreeWithGold: withCloud.filter((c) => ok(c.cloud!.relation, gold(c))).length,
+          agreeAfterGuard: withCloud.filter((c) => ok(guarded(c.cloud!.relation, c).relation, gold(c))).length,
+          introducedAfterGuard: withCloud.filter(
+            (c) => ok(guarded(c.local?.relation ?? 'insufficient', c).relation, gold(c)) && !ok(guarded(c.cloud!.relation, c).relation, gold(c)),
+          ).length,
         }
       : null,
     ms: { mapping: Math.round(t1 - t0), reconcile: Math.round(t2 - t1) },
