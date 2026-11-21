@@ -10,6 +10,9 @@ import { appCheckConfigured, appCheckDebugMode, firebaseConfigured, getAppCheckI
 import { loadConfig, type LanternConfig } from '../firebase/remoteConfig';
 import { parseSpreadsheet } from '../core/parse';
 import { scoreExtraction, scoreMapping, type DevKey } from '../lab/spikeScore';
+import { profileColumns } from '../core/profile';
+import { reconcileMapping } from '../core/mapping';
+import { mapColumnInput, mapColumnTask } from '../ai/prompts/v1/mapColumn';
 
 /**
  * Lab: the day-1 gate. Four spikes decide whether the product plan holds on real hardware.
@@ -40,6 +43,7 @@ export default function Lab() {
   const [s2, setS2] = useState<SpikeState>(idle);
   const [s3, setS3] = useState<SpikeState>(idle);
   const [s3cloud, setS3cloud] = useState<SpikeState>(idle);
+  const [s3m, setS3m] = useState<SpikeState>(idle);
   const [s4, setS4] = useState<SpikeState>(idle);
   const [simulateNoNano, setSimulateNoNano] = useState(false);
   const [prepareError, setPrepareError] = useState<string | null>(null);
@@ -200,6 +204,75 @@ export default function Lab() {
     }
   }
 
+  /** Mapping only: whole-table prompt vs one prompt per column, each raw and after reconciliation with value shapes. */
+  async function runS3m(route: Route) {
+    setS3m({ status: 'running', lines: ['loading fixtures…'] });
+    try {
+      const key = (await (await fetch('/fixtures/dev/dev-key.json')).json()) as DevKey;
+      const lines: string[] = [];
+      const tally = { tableRaw: 0, tableRec: 0, colRaw: 0, colRec: 0, total: 0, flaggedTable: 0, flaggedCol: 0, msTable: 0, msCol: 0 };
+      for (const v of key.variants) {
+        const buf = await (await fetch(`/fixtures/dev/${v.file}`)).arrayBuffer();
+        const grid = await parseSpreadsheet(v.file, buf);
+        const profiles = profileColumns(grid.headers, grid.rows);
+        const opts = { route, dataOrigin: 'bundled-fixture' as const, cloudModel, outgoingRefs: [`fixture:dev/${v.file}#headers`] };
+
+        const t = await runTask(mapColumnsTask, mapColumnsInput(grid.headers, grid.rows), opts);
+        const tableRec = reconcileMapping(profiles, t.value);
+        tally.msTable += t.latencyMs;
+
+        const perCol = [];
+        let msCol = 0;
+        for (const p of profiles) {
+          const r = await runTask(mapColumnTask, mapColumnInput(grid.headers, p), opts);
+          msCol += r.latencyMs;
+          perCol.push({ index: p.index, ...r.value });
+        }
+        tally.msCol += msCol;
+        const colRec = reconcileMapping(profiles, perCol);
+
+        const s = {
+          tableRaw: scoreMapping(t.value, v.mapping).correct,
+          tableRec: scoreMapping(tableRec.map((c) => ({ index: c.index, field: c.field, confidence: 'high' as const })), v.mapping).correct,
+          colRaw: scoreMapping(perCol, v.mapping).correct,
+          colRec: scoreMapping(colRec.map((c) => ({ index: c.index, field: c.field, confidence: 'high' as const })), v.mapping).correct,
+        };
+        tally.tableRaw += s.tableRaw;
+        tally.tableRec += s.tableRec;
+        tally.colRaw += s.colRaw;
+        tally.colRec += s.colRec;
+        tally.total += v.mapping.length;
+        tally.flaggedTable += tableRec.filter((c) => c.needsReview).length;
+        tally.flaggedCol += colRec.filter((c) => c.needsReview).length;
+        const n = v.mapping.length;
+        lines.push(
+          `${v.label}: table ${s.tableRaw}/${n} → reconciled ${s.tableRec}/${n} (${t.latencyMs} ms) | per-column ${s.colRaw}/${n} → reconciled ${s.colRec}/${n} (${msCol} ms)`,
+        );
+        colRec
+          .filter((c) => c.needsReview || c.field !== v.mapping[c.index])
+          .forEach((c) =>
+            lines.push(
+              `   ${c.field === v.mapping[c.index] ? '⚑' : '✗'} col ${c.index} "${c.header}": ${c.field} (model ${c.model}, shape ${c.shape}${c.reason ? `; ${c.reason}` : ''})`,
+            ),
+          );
+        setS3m({ status: 'running', lines: [...lines] });
+      }
+      const summary = {
+        route,
+        tableRaw: `${tally.tableRaw}/${tally.total}`,
+        tableReconciled: `${tally.tableRec}/${tally.total}`,
+        perColumnRaw: `${tally.colRaw}/${tally.total}`,
+        perColumnReconciled: `${tally.colRec}/${tally.total}`,
+        flaggedForReview: { table: tally.flaggedTable, perColumn: tally.flaggedCol },
+        totalMs: { table: tally.msTable, perColumn: tally.msCol },
+      };
+      lines.unshift(`SUMMARY ${JSON.stringify(summary)}`, '⚑ = correct but flagged for the reviewer · ✗ = wrong');
+      setS3m({ status: 'pass', lines, data: { summary } });
+    } catch (e) {
+      setS3m({ status: 'fail', lines: [`error: ${e instanceof Error ? e.message : String(e)}`] });
+    }
+  }
+
   async function runS4() {
     setS4({ status: 'running', lines: [] });
     const lines: string[] = [];
@@ -235,10 +308,11 @@ export default function Lab() {
       S2: { status: s2.status, lines: s2.lines },
       S3_local: (s3.data as { summary?: unknown } | undefined)?.summary ?? s3.status,
       S3_cloud: (s3cloud.data as { summary?: unknown } | undefined)?.summary ?? s3cloud.status,
+      S3_mapping: (s3m.data as { summary?: unknown } | undefined)?.summary ?? s3m.status,
       S4: s4.data ?? s4.status,
       ledger: ledgerSummary(ledger),
     }),
-    [env, config, s1, s2, s3, s3cloud, s4, ledger],
+    [env, config, s1, s2, s3, s3cloud, s3m, s4, ledger],
   );
 
   function download() {
@@ -317,6 +391,13 @@ export default function Lab() {
         how="Synthetic dev sheets with different improvised headers. Scores column mapping and field extraction against the answer key, flags values not found in the source, and measures cold/warm latency."
         state={s3}
         onRun={() => runS3('user-local', setS3)}
+      />
+      <Spike
+        icon={<Cpu size={18} />}
+        title="S3m · Mapping strategies (table vs per-column, raw vs reconciled)"
+        how="Mapping only (≈20 on-device calls). Compares one prompt for the whole table with one prompt per column, each before and after reconciliation with Lantern's deterministic value-shape profile."
+        state={s3m}
+        onRun={() => runS3m('user-local')}
       />
       <Spike
         icon={<Cloud size={18} />}
