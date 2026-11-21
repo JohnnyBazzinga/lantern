@@ -72,6 +72,24 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
   };
 }
 
+/** act id → answer-key row id (via file + sheet row) */
+export function keyIds(key: AnswerKey, acts: Act[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const a of acts) {
+    const list = a.fileId === 'v1' ? key.rows.v1 : a.fileId === 'v2' ? key.rows.v2 : [];
+    const k = list.find((r) => r.sheetRow === a.row + 2);
+    if (k) m.set(a.id, k.id);
+  }
+  return m;
+}
+
+/** The correct relation for a candidate pair according to the answer key. */
+export function goldRelation(key: AnswerKey, v1: string, v2: string): 'same' | 'amendment' | 'separate' {
+  const p = key.expected.sameActPairs.find((x) => x.v1 === v1 && x.v2 === v2);
+  if (!p) return 'separate';
+  return p.kind === 'amendment' ? 'amendment' : 'same';
+}
+
 function kindMatches(found: string, expected: string): boolean {
   return found === expected || (expected === 'id-mismatch' && found === 'id-name-conflict');
 }

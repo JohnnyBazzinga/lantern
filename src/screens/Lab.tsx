@@ -13,6 +13,7 @@ import { scoreExtraction, scoreMapping, type DevKey } from '../lab/spikeScore';
 import { profileColumns } from '../core/profile';
 import { reconcileMapping } from '../core/mapping';
 import { mapColumnInput, mapColumnTask } from '../ai/prompts/v1/mapColumn';
+import { runDrillBench } from '../lab/drillBench';
 
 /**
  * Lab: the day-1 gate. Four spikes decide whether the product plan holds on real hardware.
@@ -44,6 +45,8 @@ export default function Lab() {
   const [s3, setS3] = useState<SpikeState>(idle);
   const [s3cloud, setS3cloud] = useState<SpikeState>(idle);
   const [s3m, setS3m] = useState<SpikeState>(idle);
+  const [s5, setS5] = useState<SpikeState>(idle);
+  const [s5cloud, setS5cloud] = useState(false);
   const [s4, setS4] = useState<SpikeState>(idle);
   const [simulateNoNano, setSimulateNoNano] = useState(false);
   const [prepareError, setPrepareError] = useState<string | null>(null);
@@ -273,6 +276,40 @@ export default function Lab() {
     }
   }
 
+  async function runS5() {
+    const lines: string[] = [];
+    setS5({ status: 'running', lines: ['loading the Ward 7B drill…'] });
+    try {
+      const r = await runDrillBench({
+        cloudModel,
+        withCloud: s5cloud,
+        onProgress: (p) => setS5({ status: 'running', lines: [...lines, `${p.stage} ${p.total > 1 ? `(${p.done}/${p.total})` : ''}`] }),
+      });
+      lines.push('MAPPING (adaptive)');
+      r.mapping.forEach((m) => lines.push(`   ${m.file}: ${m.correct}/${m.total} correct, ${m.flagged} flagged for review`));
+      lines.push(
+        '',
+        `PAIR JUDGMENTS: ${r.local.calls}/${r.local.judged} judged locally (${r.local.onDevice} on_device, ${r.local.inCloud} in_cloud), ${r.local.agreeWithGold} agree with the answer key`,
+      );
+      if (r.cloud)
+        lines.push(
+          `SECOND OPINION: ${r.cloud.calls} cloud calls, ${r.cloud.agreeWithGold} agree with the key, corrected ${r.cloud.corrected} local errors, introduced ${r.cloud.introducedErrors} new errors`,
+        );
+      lines.push('', 'METHOD                                   | same-act recall | precision | false merges | corrections | open Qs | v1-only kept | identity | ready (27) | open (2)');
+      for (const m of r.methods) {
+        const s = m.score;
+        lines.push(
+          `${m.name.padEnd(41)}| ${s.sameActRecall.padEnd(16)}| ${s.sameActPrecision.padEnd(10)}| ${String(s.falseMerges.length).padEnd(13)}| ${s.amendmentsFound.padEnd(12)}| ${s.openQuestionsKept.padEnd(8)}| ${s.earlierOnlyKept.padEnd(13)}| ${s.identityFound.padEnd(9)}| ${String(s.worklist.ready).padEnd(11)}| ${s.worklist.unresolved}`,
+        );
+        if (s.falseMerges.length) lines.push(`      false merges: ${s.falseMerges.join(', ')}`);
+      }
+      lines.push('', `time: mapping ${r.ms.mapping} ms, reconciliation ${r.ms.reconcile} ms`);
+      setS5({ status: 'pass', lines, data: r });
+    } catch (e) {
+      setS5({ status: 'fail', lines: [...lines, `error: ${e instanceof Error ? e.message : String(e)}`] });
+    }
+  }
+
   async function runS4() {
     setS4({ status: 'running', lines: [] });
     const lines: string[] = [];
@@ -309,10 +346,11 @@ export default function Lab() {
       S3_local: (s3.data as { summary?: unknown } | undefined)?.summary ?? s3.status,
       S3_cloud: (s3cloud.data as { summary?: unknown } | undefined)?.summary ?? s3cloud.status,
       S3_mapping: (s3m.data as { summary?: unknown } | undefined)?.summary ?? s3m.status,
+      S5_drill: s5.data ? { lines: s5.lines } : s5.status,
       S4: s4.data ?? s4.status,
       ledger: ledgerSummary(ledger),
     }),
-    [env, config, s1, s2, s3, s3cloud, s3m, s4, ledger],
+    [env, config, s1, s2, s3, s3cloud, s3m, s5, s4, ledger],
   );
 
   function download() {
@@ -398,6 +436,18 @@ export default function Lab() {
         how="Mapping only (≈20 on-device calls). Compares one prompt for the whole table with one prompt per column, each before and after reconciliation with Lantern's deterministic value-shape profile."
         state={s3m}
         onRun={() => runS3m('user-local')}
+      />
+      <Spike
+        icon={<FlaskConical size={18} />}
+        title="S5 · Ward 7B drill benchmark (frozen answer key)"
+        how="Full pipeline on the bundled drill: adaptive mapping, identity checks, exact copies, on-device pair judgments, and optionally a cloud second opinion on disputed pairs. Compares with 'latest file only' and 'exact copies only'."
+        state={s5}
+        onRun={runS5}
+        extra={
+          <label className="flex items-center gap-2 text-xs text-ink-400">
+            <input type="checkbox" checked={s5cloud} onChange={(e) => setS5cloud(e.target.checked)} /> with cloud second opinion
+          </label>
+        }
       />
       <Spike
         icon={<Cloud size={18} />}

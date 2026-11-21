@@ -131,9 +131,15 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
   for (const a of earlier)
     if (!proposals.has(a.id))
       set({ actId: a.id, disposition: { kind: 'approved' }, because: `Missing from ${later[0]?.versionLabel ?? 'the later version'}: keep unless it was deliberately removed`, needsReview: true, group: 'only-earlier' });
-  for (const b of later)
-    if (!proposals.has(b.id))
-      set({ actId: b.id, disposition: { kind: 'approved' }, because: 'Only in the later version: a new act', needsReview: true, group: 'only-later' });
+  for (const b of later) {
+    if (proposals.has(b.id)) continue;
+    // a pair the model never judged (no local model): keep the act, but put the possible duplicate in front of the reviewer
+    const unjudged = candidates.find((c) => c.b === b.id && !verdict(c) && !linkedA.has(c.a));
+    if (unjudged) {
+      const a = byId.get(unjudged.a)!;
+      set({ actId: b.id, disposition: { kind: 'approved' }, because: `Possibly the same act as ${a.versionLabel} row ${a.row + 2}; no on-device model was available, decide manually`, needsReview: true, group: 'likely-same' });
+    } else set({ actId: b.id, disposition: { kind: 'approved' }, because: 'Only in the later version: a new act', needsReview: true, group: 'only-later' });
+  }
 
   // 3) open questions override: insufficient verdicts and error-prone abbreviations are never guessed
   for (const c of candidates) {
