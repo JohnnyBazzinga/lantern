@@ -57,11 +57,15 @@ export function profileColumns(headers: string[], rows: string[][]): ColumnProfi
       freeText: values.filter((v) => v.split(/\s+/).length >= 3).length / n,
       dash: share(RX.dash),
     };
-    return { index, header, filled: values.length, shapes, suggested: suggest(shapes, values.length), samples: values.slice(0, 3) };
+    return { index, header, filled: values.length, shapes, suggested: suggest(shapes, values.length, header), samples: values.slice(0, 3) };
   });
 }
 
-function suggest(s: ColumnProfile['shapes'], filled: number): CanonicalField | null {
+/** Words wards actually use for free-text columns; a third, model-free signal for act vs notes. */
+const NOTES_HEADER = /\b(comments?|notes?|remarks?|obs(?:ervations)? ?\/? ?comments?)\b/i;
+const ACT_HEADER = /\b(what|done|acts?|actions?|details?|descr\w*|interventions?|tasks?|drugs?|meds?|medications?|treatments?|given|care|entry|events?|procedures?)\b/i;
+
+function suggest(s: ColumnProfile['shapes'], filled: number, header = ''): CanonicalField | null {
   if (filled === 0) return 'ignore';
   const dominant = 0.7;
   if (s.nameWithId >= dominant) return 'patient';
@@ -71,7 +75,11 @@ function suggest(s: ColumnProfile['shapes'], filled: number): CanonicalField | n
   if (s.initials >= dominant) return 'documented_by';
   if (s.bedNumber >= dominant) return 'bed';
   if (s.personName >= dominant) return 'patient_name';
-  // free-text columns are 'act' or 'notes': shapes cannot tell which, Nano and the header decide
+  // free-text columns are 'act' or 'notes': value shapes cannot tell which, so the header decides
+  if (s.freeText + s.dash >= 0.5 || s.startsWithTime >= 0.5) {
+    if (NOTES_HEADER.test(header)) return 'notes';
+    if (ACT_HEADER.test(header)) return 'act';
+  }
   return null;
 }
 

@@ -42,7 +42,9 @@ function Product() {
   useEffect(() => {
     if (!session?.acts.length) setView('review');
   }, [session?.id, session?.acts.length]);
-  useEffect(() => window.scrollTo({ top: 0 }), [view]);
+  useEffect(() => {
+    window.scrollTo({ top: 0 }); // recent Chrome returns a Promise here; never return it to React
+  }, [view]);
 
   let screen;
   if (!session) screen = <Start />;

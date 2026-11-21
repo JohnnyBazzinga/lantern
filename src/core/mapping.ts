@@ -38,7 +38,10 @@ export function reconcileMapping(profiles: ColumnProfile[], opinions: ModelOpini
     const base = { index: p.index, header: p.header, model, shape };
 
     if (!model) {
-      return { ...base, field: shape ?? 'ignore', basis: shape ? 'shape' : 'default', needsReview: true, reason: 'no model answer' };
+      // no model: trust a clear value/header signal, ask the reviewer about the rest
+      return shape
+        ? { ...base, field: shape, basis: 'shape', needsReview: false, reason: 'read from the values and header' }
+        : { ...base, field: 'ignore', basis: 'default', needsReview: true, reason: 'no model available: please choose' };
     }
     // a name-only column misread as "patient" (name + identifier)
     if (model === 'patient' && p.shapes.nameWithId < 0.5 && p.shapes.personName >= 0.7) {

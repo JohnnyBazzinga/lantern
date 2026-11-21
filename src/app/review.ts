@@ -17,6 +17,8 @@ export interface ReviewItem {
   actIds: string[];
   identity: IdentityIssue[];
   proposals: Proposal[];
+  /** no model judged this pair: Lantern makes no suggestion, the reviewer decides */
+  undecidedByModel?: boolean;
 }
 
 export const GROUP_COPY: Record<ReviewGroup, { title: string; hint: string }> = {
@@ -47,11 +49,12 @@ export function buildItems(acts: Act[], proposals: Proposal[], identity: Identit
     items.push({ id: `${a}~${b}`, group, kind: 'pair', a, b, actIds: [a, b], identity: issuesFor([a, b]), proposals: [pa!, p].filter(Boolean) });
   }
   // possible duplicates that no model judged: show both rows side by side, let the reviewer decide
+  const later = new Set(acts.filter((a) => a.fileId !== acts[0]?.fileId).map((a) => a.id));
   for (const p of proposals) {
-    if (!p.pairWith || used.has(p.actId) || used.has(p.pairWith)) continue;
+    if (!p.pairWith || !later.has(p.actId) || used.has(p.actId) || used.has(p.pairWith)) continue;
     const pa = prop.get(p.pairWith);
     used.add(p.pairWith).add(p.actId);
-    items.push({ id: `${p.pairWith}~${p.actId}`, group: p.group, kind: 'pair', a: p.pairWith, b: p.actId, actIds: [p.pairWith, p.actId], identity: issuesFor([p.pairWith, p.actId]), proposals: [pa!, p].filter(Boolean) });
+    items.push({ id: `${p.pairWith}~${p.actId}`, group: p.group, kind: 'pair', a: p.pairWith, b: p.actId, actIds: [p.pairWith, p.actId], identity: issuesFor([p.pairWith, p.actId]), proposals: [pa!, p].filter(Boolean), undecidedByModel: true });
   }
   for (const act of acts) {
     if (used.has(act.id)) continue;

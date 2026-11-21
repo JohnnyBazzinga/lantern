@@ -76,7 +76,7 @@ function ReviewHeader({ onWorklist }: { onWorklist: () => void }) {
   const sentRows = new Set(cloudCalls.flatMap((e) => e.outgoingRefs.filter((r) => r.includes(':')))).size;
   const deviceCalls = ledger.filter((e) => e.inferenceSource === 'on_device').length;
   return (
-    <header className="sticky top-0 z-20 border-b border-rule bg-paper/95 backdrop-blur-[2px]">
+    <header className="sticky top-0 z-20 border-b border-rule bg-paper">
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-3 sm:px-8">
         <div className="flex items-center gap-2">
           <LanternMark />
@@ -361,7 +361,7 @@ function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; 
       tone: 'secondary',
     });
   }
-  options.forEach((o) => (o.suggested = isSug(o.d)));
+  options.forEach((o) => (o.suggested = !item.undecidedByModel && isSug(o.d)));
   const current = JSON.stringify(Object.fromEntries(item.actIds.map((id) => [id, decisions[id]])));
 
   return (

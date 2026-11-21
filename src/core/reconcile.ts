@@ -180,16 +180,26 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
     }
   }
 
-  // 2) unlinked rows
+  // 2) unlinked rows; first, possible duplicates no model judged (shown side by side, decided by hand)
+  const unjudgedFor = new Map<string, string>();
+  for (const b of later) {
+    if (proposals.has(b.id)) continue;
+    const c = candidates.find((x) => x.b === b.id && !verdict(x, byId) && !linkedA.has(x.a) && ![...unjudgedFor.values()].includes(x.a));
+    if (c) unjudgedFor.set(b.id, c.a);
+  }
+  for (const [bId, aId] of unjudgedFor) {
+    const b = byId.get(bId)!;
+    set({ actId: aId, disposition: { kind: 'approved' }, because: `Possibly re-typed in ${b.versionLabel} row ${b.row + 2}; no on-device model was available, decide manually`, needsReview: true, group: 'likely-same', pairWith: bId });
+  }
   for (const a of earlier)
     if (!proposals.has(a.id))
       set({ actId: a.id, disposition: { kind: 'approved' }, because: `Missing from ${later[0]?.versionLabel ?? 'the later version'}: keep unless it was deliberately removed`, needsReview: true, group: 'only-earlier' });
   for (const b of later) {
     if (proposals.has(b.id)) continue;
     // a pair the model never judged (no local model): keep the act, but put the possible duplicate in front of the reviewer
-    const unjudged = candidates.find((c) => c.b === b.id && !verdict(c, byId) && !linkedA.has(c.a));
-    if (unjudged) {
-      const a = byId.get(unjudged.a)!;
+    const aId = unjudgedFor.get(b.id);
+    if (aId) {
+      const a = byId.get(aId)!;
       set({ actId: b.id, disposition: { kind: 'approved' }, because: `Possibly the same act as ${a.versionLabel} row ${a.row + 2}; no on-device model was available, decide manually`, needsReview: true, group: 'likely-same', pairWith: a.id });
     } else set({ actId: b.id, disposition: { kind: 'approved' }, because: 'Only in the later version: a new act', needsReview: true, group: 'only-later' });
   }
@@ -216,7 +226,7 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
         set({ actId: id, disposition: { kind: 'unresolved', owner: owner(act), question: issue.detail }, because: 'Patient identity cannot be confirmed from the sheet', needsReview: true, group: 'identity' });
       } else {
         const prev = proposals.get(id);
-        set({ ...(prev ?? { actId: id, disposition: { kind: 'approved' }, because: '' }), because: `${issue.detail}${prev?.because ? ` · ${prev.because}` : ''}`, needsReview: true, group: 'identity' });
+        set({ ...(prev ?? { actId: id, disposition: { kind: 'approved' }, because: '' }), because: prev?.because || 'Check the patient identity first', needsReview: true, group: 'identity' });
       }
     }
 

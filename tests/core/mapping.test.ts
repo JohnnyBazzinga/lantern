@@ -13,27 +13,41 @@ const ops = (fields: (string | null)[]): ModelOpinion[] =>
 describe('profileColumns', () => {
   it('recognises value shapes independently of headers', async () => {
     const c = await grid('variant-c.csv');
-    expect(profileColumns(c.headers, c.rows).map((p) => p.suggested)).toEqual(['bed', 'patient', null, 'documented_by', 'ignore']);
+    expect(profileColumns(c.headers, c.rows).map((p) => p.suggested)).toEqual(['bed', 'patient', 'act', 'documented_by', 'ignore']);
     const b = await grid('variant-b.csv');
     expect(profileColumns(b.headers, b.rows).map((p) => p.suggested)).toEqual([
       'bed',
       'patient_name',
       'patient_id',
       'event_time',
-      null,
-      null,
+      'act',
+      'notes',
       'documented_by',
     ]);
   });
 });
 
 describe('reconcileMapping', () => {
+  it('maps every column of the drill sheets with no model at all (values + header lexicon)', async () => {
+    for (const [name, expected] of [
+      ['variant-a.csv', ['bed', 'patient_name', 'patient_id', 'event_time', 'act', 'notes', 'documented_by']],
+      ['variant-b.csv', ['bed', 'patient_name', 'patient_id', 'event_time', 'act', 'notes', 'documented_by']],
+      ['variant-c.csv', ['bed', 'patient', 'act', 'documented_by', 'ignore']],
+    ] as const) {
+      const g = await grid(name);
+      const out = reconcileMapping(profileColumns(g.headers, g.rows), []);
+      expect(out.map((x) => x.field)).toEqual(expected);
+      expect(out.filter((x) => x.needsReview)).toEqual([]);
+    }
+  });
+
   it('fixes the real Gemini Nano errors from the day-1 run and flags them for review', async () => {
     // Observed on 2026-11-21 (S3, variant C): "Who" → documented_by, "Logged by" → ignore, "Sent?" missing
     const c = await grid('variant-c.csv');
     const out = reconcileMapping(profileColumns(c.headers, c.rows), ops(['bed', 'documented_by', 'act', 'ignore', null]));
     expect(out.map((x) => x.field)).toEqual(['bed', 'patient', 'act', 'documented_by', 'ignore']);
-    expect(out.filter((x) => x.needsReview).map((x) => x.index)).toEqual([1, 3, 4]);
+    // model and values disagree on 1 and 3 → flagged; the unanswered yes/no column is unambiguous from its values
+    expect(out.filter((x) => x.needsReview).map((x) => x.index)).toEqual([1, 3]);
   });
 
   it('turns a name-only "patient" column into patient_name', async () => {

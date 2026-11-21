@@ -36,7 +36,7 @@ export async function mapFile(file: SourceFile, cloudModel: string, onProgress?:
   try {
     opinions = (await runTask(mapColumnsTask, mapColumnsInput(file.headers, file.rows), opts)).value;
   } catch {
-    return reconcileMapping(profiles, []).map((c) => ({ ...c, needsReview: c.needsReview || c.shape === null }));
+    return reconcileMapping(profiles, []);
   }
   let cols = reconcileMapping(profiles, opinions);
   const disputed = cols.filter((c) => c.needsReview);
