@@ -47,6 +47,7 @@ export default function Lab() {
   const [s3m, setS3m] = useState<SpikeState>(idle);
   const [s5, setS5] = useState<SpikeState>(idle);
   const [s5cloud, setS5cloud] = useState(false);
+  const [s5prompt, setS5prompt] = useState<'same-event' | 'four-way'>('same-event');
   const [s4, setS4] = useState<SpikeState>(idle);
   const [simulateNoNano, setSimulateNoNano] = useState(false);
   const [prepareError, setPrepareError] = useState<string | null>(null);
@@ -283,13 +284,15 @@ export default function Lab() {
       const r = await runDrillBench({
         cloudModel,
         withCloud: s5cloud,
+        pairPrompt: s5prompt,
         onProgress: (p) => setS5({ status: 'running', lines: [...lines, `${p.stage} ${p.total > 1 ? `(${p.done}/${p.total})` : ''}`] }),
       });
       lines.push('MAPPING (adaptive)');
       r.mapping.forEach((m) => lines.push(`   ${m.file}: ${m.correct}/${m.total} correct, ${m.flagged} flagged for review`));
       lines.push(
         '',
-        `PAIR JUDGMENTS: ${r.local.calls}/${r.local.judged} judged locally (${r.local.onDevice} on_device, ${r.local.inCloud} in_cloud); agree with the answer key: ${r.local.agreeWithGold} raw → ${r.local.agreeAfterGuard} after Lantern's rules`,
+        `PAIR JUDGMENTS (prompt: ${r.local.prompt}): ${r.local.calls}/${r.local.judged} judged locally (${r.local.onDevice} on_device, ${r.local.inCloud} in_cloud)`,
+        `   "same act?" right: ${r.local.sameActAgree}/${r.local.calls} · full relation right: ${r.local.agreeWithGold} raw → ${r.local.agreeAfterGuard} after Lantern's rules`,
       );
       r.pairs.forEach((p) =>
         lines.push(
@@ -450,9 +453,22 @@ export default function Lab() {
         state={s5}
         onRun={runS5}
         extra={
-          <label className="flex items-center gap-2 text-xs text-ink-400">
-            <input type="checkbox" checked={s5cloud} onChange={(e) => setS5cloud(e.target.checked)} /> with cloud second opinion
-          </label>
+          <div className="flex flex-col gap-1 text-xs text-ink-400">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={s5cloud} onChange={(e) => setS5cloud(e.target.checked)} /> with cloud second opinion
+            </label>
+            <label className="flex items-center gap-2">
+              on-device question
+              <select
+                className="rounded border border-ink-600 bg-ink-900 px-1 py-0.5"
+                value={s5prompt}
+                onChange={(e) => setS5prompt(e.target.value as 'same-event' | 'four-way')}
+              >
+                <option value="same-event">same act? (yes/no/unsure)</option>
+                <option value="four-way">four-way relation</option>
+              </select>
+            </label>
+          </div>
         }
       />
       <Spike

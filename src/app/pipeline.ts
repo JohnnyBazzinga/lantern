@@ -3,6 +3,7 @@ import { runTask, type Route } from '../ai/models';
 import { mapColumnInput, mapColumnTask } from '../ai/prompts/v1/mapColumn';
 import { mapColumnsInput, mapColumnsTask } from '../ai/prompts/v1/mapColumns';
 import { judgePairInput, judgePairTask } from '../ai/prompts/v1/judgePair';
+import { sameEventInput, sameEventTask } from '../ai/prompts/v1/sameEvent';
 import { secondOpinionInput, secondOpinionTask } from '../ai/prompts/v1/secondOpinion';
 import { buildActs, buildCensus } from '../core/acts';
 import { findCandidates } from '../core/candidates';
@@ -72,6 +73,8 @@ export interface ReconcileOptions {
   secondOpinion: boolean;
   /** skip model judgments entirely (exact-copy baseline) */
   judge?: boolean;
+  /** on-device pair question: narrow "same act?" (default) or the four-way relation prompt */
+  pairPrompt?: 'same-event' | 'four-way';
   onProgress?: Progress;
 }
 
@@ -91,7 +94,10 @@ export async function reconcileFiles(o: ReconcileOptions): Promise<ReconcileResu
     for (const c of todo) {
       o.onProgress?.({ stage: 'Comparing rows on this device', done: done++, total: todo.length });
       try {
-        const r = await runTask(judgePairTask, judgePairInput(byId.get(c.a)!, byId.get(c.b)!), {
+        const a = byId.get(c.a)!;
+        const b = byId.get(c.b)!;
+        const fourWay = o.pairPrompt === 'four-way';
+        const r = await runTask(fourWay ? judgePairTask : sameEventTask, fourWay ? judgePairInput(a, b) : sameEventInput(a, b), {
           route,
           dataOrigin: dataOrigin(files),
           cloudModel: o.cloudModel,

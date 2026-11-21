@@ -21,13 +21,29 @@ const EXPECTED_MAPPING: Record<string, CanonicalField[]> = {
 export interface BenchResult {
   mapping: { file: string; correct: number; total: number; flagged: number }[];
   methods: { name: string; score: DrillScore }[];
-  local: { calls: number; onDevice: number; inCloud: number; agreeWithGold: number; agreeAfterGuard: number; judged: number };
+  local: {
+    prompt: string;
+    calls: number;
+    onDevice: number;
+    inCloud: number;
+    /** strict agreement on the four-way relation */
+    agreeWithGold: number;
+    /** agreement on the narrow question the on-device model is asked: same act or not */
+    sameActAgree: number;
+    agreeAfterGuard: number;
+    judged: number;
+  };
   pairs: { pair: string; gold: string; local: string; localGuarded: string; cloud: string; rule: string }[];
   cloud: { calls: number; corrected: number; introducedErrors: number; agreeWithGold: number } | null;
   ms: { mapping: number; reconcile: number };
 }
 
-export async function runDrillBench(o: { cloudModel: string; withCloud: boolean; onProgress?: Progress }): Promise<BenchResult> {
+export async function runDrillBench(o: {
+  cloudModel: string;
+  withCloud: boolean;
+  pairPrompt?: 'same-event' | 'four-way';
+  onProgress?: Progress;
+}): Promise<BenchResult> {
   const key = (await (await fetch('/fixtures/drill/answer-key.json')).json()) as AnswerKey;
   const files = await loadDrillFiles();
   const t0 = performance.now();
@@ -46,7 +62,15 @@ export async function runDrillBench(o: { cloudModel: string; withCloud: boolean;
   }
   const t1 = performance.now();
   const [census, v1, v2] = files as [(typeof files)[0], (typeof files)[0], (typeof files)[0]];
-  const r = await reconcileFiles({ census, earlier: v1, later: v2, cloudModel: o.cloudModel, secondOpinion: o.withCloud, onProgress: o.onProgress });
+  const r = await reconcileFiles({
+    census,
+    earlier: v1,
+    later: v2,
+    cloudModel: o.cloudModel,
+    secondOpinion: o.withCloud,
+    pairPrompt: o.pairPrompt ?? 'same-event',
+    onProgress: o.onProgress,
+  });
   const t2 = performance.now();
 
   const ids = keyIds(key, r.acts);
@@ -89,10 +113,12 @@ export async function runDrillBench(o: { cloudModel: string; withCloud: boolean;
     methods,
     pairs,
     local: {
+      prompt: o.pairPrompt ?? 'same-event',
       calls: withLocal.length,
       onDevice: withLocal.filter((c) => c.local!.source === 'on_device').length,
       inCloud: withLocal.filter((c) => c.local!.source === 'in_cloud').length,
       agreeWithGold: withLocal.filter((c) => ok(c.local!.relation, gold(c))).length,
+      sameActAgree: withLocal.filter((c) => (c.local!.relation === 'same' || c.local!.relation === 'amendment') === (gold(c) !== 'separate')).length,
       agreeAfterGuard: withLocal.filter((c) => ok(guarded(c.local!.relation, c).relation, gold(c))).length,
       judged: judged.length,
     },
