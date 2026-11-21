@@ -1,0 +1,507 @@
+{
+  "_about": "Frozen benchmark for the Lantern downtime drill. Synthetic data. Row ids map to sheet rows via \"sheetRow\". Never include this file in prompts.",
+  "scenario": {
+    "hospital": "St. Elm General (fictional)",
+    "ward": "Ward 7B — Internal Medicine",
+    "outage": "Electronic record unavailable from 21:40 to 07:15",
+    "story": [
+      "21:40 the electronic record goes down. Night nurses log care in an improvised spreadsheet on the ward PC; paper notes on the trolley.",
+      "03:10 the nurse in charge emails the log to the clinical secretary: '7B downtime log.xlsx' (version 1).",
+      "07:40 nurse JM replies-all with her copy: '7B downtime log (2).xlsx' (version 2). She kept logging in the attachment, re-typed some acts from her paper notes, corrected three entries, and sorted the sheet by bed — losing three rows.",
+      "08:30 systems are back. Rita, the clinical secretary, has to decide what goes back into the record."
+    ]
+  },
+  "files": {
+    "census": "ward-census.csv",
+    "v1": "7B-downtime-log.xlsx",
+    "v2": "7B-downtime-log (2).xlsx"
+  },
+  "rows": {
+    "v1": [
+      {
+        "id": "v1-01",
+        "sheetRow": 2
+      },
+      {
+        "id": "v1-02",
+        "sheetRow": 3
+      },
+      {
+        "id": "v1-03",
+        "sheetRow": 4
+      },
+      {
+        "id": "v1-04",
+        "sheetRow": 5
+      },
+      {
+        "id": "v1-05",
+        "sheetRow": 6
+      },
+      {
+        "id": "v1-06",
+        "sheetRow": 7
+      },
+      {
+        "id": "v1-07",
+        "sheetRow": 8
+      },
+      {
+        "id": "v1-08",
+        "sheetRow": 9
+      },
+      {
+        "id": "v1-09",
+        "sheetRow": 10
+      },
+      {
+        "id": "v1-10",
+        "sheetRow": 11
+      },
+      {
+        "id": "v1-11",
+        "sheetRow": 12
+      },
+      {
+        "id": "v1-12",
+        "sheetRow": 13
+      },
+      {
+        "id": "v1-13",
+        "sheetRow": 14
+      },
+      {
+        "id": "v1-14",
+        "sheetRow": 15
+      },
+      {
+        "id": "v1-15",
+        "sheetRow": 16
+      },
+      {
+        "id": "v1-16",
+        "sheetRow": 17
+      },
+      {
+        "id": "v1-17",
+        "sheetRow": 18
+      },
+      {
+        "id": "v1-18",
+        "sheetRow": 19
+      },
+      {
+        "id": "v1-19",
+        "sheetRow": 20
+      },
+      {
+        "id": "v1-20",
+        "sheetRow": 21
+      },
+      {
+        "id": "v1-21",
+        "sheetRow": 22
+      },
+      {
+        "id": "v1-22",
+        "sheetRow": 23
+      },
+      {
+        "id": "v1-23",
+        "sheetRow": 24
+      },
+      {
+        "id": "v1-24",
+        "sheetRow": 25
+      }
+    ],
+    "v2": [
+      {
+        "id": "v2-c12",
+        "sheetRow": 2,
+        "kind": "copy",
+        "of": "v1-12"
+      },
+      {
+        "id": "v2-n1",
+        "sheetRow": 3,
+        "kind": "new",
+        "traps": [
+          "genuine-repeat-of:v1-03"
+        ]
+      },
+      {
+        "id": "v2-q1",
+        "sheetRow": 4,
+        "kind": "ambiguous",
+        "reason": "'MS' is an error-prone abbreviation (morphine sulfate or magnesium sulfate) and the dose differs from earlier entries",
+        "owner": "documenting nurse (JM)"
+      },
+      {
+        "id": "v2-p03",
+        "sheetRow": 5,
+        "kind": "paraphrase",
+        "of": "v1-03",
+        "traps": [
+          "missing-time",
+          "competing-match"
+        ]
+      },
+      {
+        "id": "v2-p11",
+        "sheetRow": 6,
+        "kind": "paraphrase",
+        "of": "v1-11"
+      },
+      {
+        "id": "v2-a16",
+        "sheetRow": 7,
+        "kind": "amendment",
+        "of": "v1-16",
+        "field": "time",
+        "from": "02:00",
+        "to": "02:30"
+      },
+      {
+        "id": "v2-n3",
+        "sheetRow": 8,
+        "kind": "new",
+        "traps": [
+          "not-in-census"
+        ]
+      },
+      {
+        "id": "v2-q2",
+        "sheetRow": 9,
+        "kind": "ambiguous",
+        "reason": "bed only, no name or hospital number; bed 5 changed patient during the night (Henry Walsh until 02:30, Joan Pike from 03:40)",
+        "owner": "documenting nurse (JM)"
+      },
+      {
+        "id": "v2-p23",
+        "sheetRow": 10,
+        "kind": "paraphrase",
+        "of": "v1-23"
+      },
+      {
+        "id": "v2-p01",
+        "sheetRow": 11,
+        "kind": "paraphrase",
+        "of": "v1-01",
+        "traps": [
+          "name-variant"
+        ]
+      },
+      {
+        "id": "v2-p13",
+        "sheetRow": 12,
+        "kind": "paraphrase",
+        "of": "v1-13"
+      },
+      {
+        "id": "v2-c06",
+        "sheetRow": 13,
+        "kind": "copy",
+        "of": "v1-06"
+      },
+      {
+        "id": "v2-a18",
+        "sheetRow": 14,
+        "kind": "amendment",
+        "of": "v1-18",
+        "field": "dose",
+        "from": "5mg",
+        "to": "10mg"
+      },
+      {
+        "id": "v2-c17",
+        "sheetRow": 15,
+        "kind": "copy",
+        "of": "v1-17"
+      },
+      {
+        "id": "v2-c22",
+        "sheetRow": 16,
+        "kind": "copy",
+        "of": "v1-22"
+      },
+      {
+        "id": "v2-c02",
+        "sheetRow": 17,
+        "kind": "copy",
+        "of": "v1-02"
+      },
+      {
+        "id": "v2-c10",
+        "sheetRow": 18,
+        "kind": "copy",
+        "of": "v1-10"
+      },
+      {
+        "id": "v2-c21",
+        "sheetRow": 19,
+        "kind": "copy",
+        "of": "v1-21"
+      },
+      {
+        "id": "v2-n2",
+        "sheetRow": 20,
+        "kind": "new",
+        "traps": [
+          "genuine-repeat-of:v1-05"
+        ]
+      },
+      {
+        "id": "v2-c04",
+        "sheetRow": 21,
+        "kind": "copy",
+        "of": "v1-04"
+      },
+      {
+        "id": "v2-c05",
+        "sheetRow": 22,
+        "kind": "copy",
+        "of": "v1-05"
+      },
+      {
+        "id": "v2-c15",
+        "sheetRow": 23,
+        "kind": "copy",
+        "of": "v1-15"
+      },
+      {
+        "id": "v2-c19",
+        "sheetRow": 24,
+        "kind": "copy",
+        "of": "v1-19"
+      },
+      {
+        "id": "v2-p09",
+        "sheetRow": 25,
+        "kind": "paraphrase",
+        "of": "v1-09",
+        "traps": [
+          "id-transposed",
+          "drug-typo"
+        ]
+      },
+      {
+        "id": "v2-c14",
+        "sheetRow": 26,
+        "kind": "copy",
+        "of": "v1-14"
+      },
+      {
+        "id": "v2-a20",
+        "sheetRow": 27,
+        "kind": "amendment",
+        "of": "v1-20",
+        "field": "status",
+        "from": "given",
+        "to": "not given (patient refused)"
+      }
+    ]
+  },
+  "expected": {
+    "onlyInV1": [
+      "v1-07",
+      "v1-08",
+      "v1-24"
+    ],
+    "sameActPairs": [
+      {
+        "v1": "v1-02",
+        "v2": "v2-c02",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-04",
+        "v2": "v2-c04",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-05",
+        "v2": "v2-c05",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-06",
+        "v2": "v2-c06",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-10",
+        "v2": "v2-c10",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-12",
+        "v2": "v2-c12",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-14",
+        "v2": "v2-c14",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-15",
+        "v2": "v2-c15",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-17",
+        "v2": "v2-c17",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-19",
+        "v2": "v2-c19",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-21",
+        "v2": "v2-c21",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-22",
+        "v2": "v2-c22",
+        "kind": "copy"
+      },
+      {
+        "v1": "v1-01",
+        "v2": "v2-p01",
+        "kind": "paraphrase"
+      },
+      {
+        "v1": "v1-03",
+        "v2": "v2-p03",
+        "kind": "paraphrase"
+      },
+      {
+        "v1": "v1-09",
+        "v2": "v2-p09",
+        "kind": "paraphrase"
+      },
+      {
+        "v1": "v1-11",
+        "v2": "v2-p11",
+        "kind": "paraphrase"
+      },
+      {
+        "v1": "v1-13",
+        "v2": "v2-p13",
+        "kind": "paraphrase"
+      },
+      {
+        "v1": "v1-23",
+        "v2": "v2-p23",
+        "kind": "paraphrase"
+      },
+      {
+        "v1": "v1-16",
+        "v2": "v2-a16",
+        "kind": "amendment"
+      },
+      {
+        "v1": "v1-18",
+        "v2": "v2-a18",
+        "kind": "amendment"
+      },
+      {
+        "v1": "v1-20",
+        "v2": "v2-a20",
+        "kind": "amendment"
+      }
+    ],
+    "mustNotMerge": [
+      {
+        "v1": "v1-03",
+        "v2": "v2-n1",
+        "why": "second PRN morphine dose at 01:45 (first at 22:30)"
+      },
+      {
+        "v1": "v1-05",
+        "v2": "v2-n2",
+        "why": "later glucose check with a different value"
+      },
+      {
+        "v1": "v1-03",
+        "v2": "v2-q1",
+        "why": "different drug abbreviation and dose; must stay open"
+      }
+    ],
+    "amendments": [
+      {
+        "v1": "v1-16",
+        "v2": "v2-a16",
+        "field": "time",
+        "from": "02:00",
+        "to": "02:30"
+      },
+      {
+        "v1": "v1-18",
+        "v2": "v2-a18",
+        "field": "dose",
+        "from": "5mg",
+        "to": "10mg"
+      },
+      {
+        "v1": "v1-20",
+        "v2": "v2-a20",
+        "field": "status",
+        "from": "given",
+        "to": "not given (patient refused)"
+      }
+    ],
+    "openQuestions": [
+      {
+        "v2": "v2-q1",
+        "reason": "'MS' is an error-prone abbreviation (morphine sulfate or magnesium sulfate) and the dose differs from earlier entries",
+        "owner": "documenting nurse (JM)"
+      },
+      {
+        "v2": "v2-q2",
+        "reason": "bed only, no name or hospital number; bed 5 changed patient during the night (Henry Walsh until 02:30, Joan Pike from 03:40)",
+        "owner": "documenting nurse (JM)"
+      }
+    ],
+    "identityConflicts": [
+      {
+        "rows": [
+          "v1-01",
+          "v2-p01"
+        ],
+        "kind": "name-variant",
+        "resolution": "Ana Ribeiro (census, H-204811)"
+      },
+      {
+        "rows": [
+          "v1-09",
+          "v2-p09"
+        ],
+        "kind": "id-mismatch",
+        "resolution": "H-209912 (census); H-209921 is a transposition"
+      },
+      {
+        "rows": [
+          "v2-n3"
+        ],
+        "kind": "not-in-census",
+        "resolution": "admitted during the outage; confirm against admission record"
+      },
+      {
+        "rows": [
+          "v2-q2"
+        ],
+        "kind": "no-identity",
+        "resolution": "bed only; cannot be attributed without the documenting nurse"
+      }
+    ],
+    "worklist": {
+      "approvedActs": 27,
+      "unresolved": 2
+    }
+  }
+}
