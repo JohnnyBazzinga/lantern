@@ -1,34 +1,123 @@
 # Lantern
 
-**When the hospital's systems go dark, the ward keeps writing. Lantern turns what they wrote into records you can trust.**
+**Re-entry after hospital IT downtime: from several emailed versions of an improvised spreadsheet to one validated worklist, on the device.**
 
-During an IT outage, wards record care on paper and improvised spreadsheets that circulate by email. When the systems come back, someone (usually a clinical secretary) has to re-enter everything, from several conflicting versions, with no method and no safety net. Lantern is a web app that does that reconciliation **on the device**: it maps whatever columns the ward invented, links every act to its source cell, and helps the reviewer decide row by row what goes back into the electronic record.
+When a hospital's electronic record goes down, wards keep caring for patients and write it down wherever they can: on paper, and in a spreadsheet on a ward PC that gets emailed around and edited in parallel. When the systems come back, someone, often a clinical secretary like our persona **Rita**, has to type all of it back into the record. She does it from several conflicting copies: rows re-typed in different words, corrections, acts that exist in only one copy, and patients identified by bed only. Lantern helps her do that reconciliation. It reads the files in the browser and works out what each improvised column means. It compares the versions with Gemini Nano on the device, checks every model verdict against deterministic rules, and ends with a re-entry worklist where every row has a decision, every act links back to its source cell, and anything ambiguous is sent back to the clinician who wrote it.
 
-Built for Google's **#BuildHybridAI 2026** hackathon with **Firebase AI Logic hybrid inference** (Gemini Nano in Chrome + Gemini in the cloud).
+Built for Google's **#BuildHybridAI 2026** hackathon with **Firebase AI Logic hybrid inference** (Gemini Nano in Chrome, Gemini in the cloud).
 
-> Status: work in progress (day 1: the on-device feasibility "Lab"). Synthetic data only. Lantern is a documentation aid, not a medical device: it makes no diagnosis, dosing or triage decisions and never writes into any EHR.
+> Lantern is a documentation aid, not a medical device. It does not diagnose, dose or triage, and it never writes into any record system. All data in this repository is synthetic: fictional hospital, patients and staff.
 
-## How Lantern uses hybrid inference
+## The problem, briefly
 
-| Route | Firebase AI Logic mode | Used for |
-|---|---|---|
-| Imported files (may contain patient data) | `ONLY_ON_DEVICE`, behind Lantern's own availability guard | column mapping, field extraction, first match judgment |
-| Bundled synthetic drill | `PREFER_ON_DEVICE` | same tasks; machines without Gemini Nano fall back to the cloud automatically, and the ledger labels it |
-| Second opinion on disputed matches | `ONLY_IN_CLOUD` | bundled synthetic data only, never user text |
+- During the 2021 HSE ransomware attack, a paediatric ED in Dublin ran on an Excel census for 23 days. Record errors rose to **19.7% from 4.7%**, and 175 return visits carried another patient's ID number ([Leonard et al., 2023](https://www.cambridge.org/core/product/1B36FA7C5C1A8C924F7C88E63FCD8467/core-reader)).
+- 96% of 50 large US health systems had at least one unplanned downtime in three years ([Sittig et al., 2014](https://pmc.ncbi.nlm.nih.gov/articles/PMC3986310/)).
+- The ONC SAFER Guide asks for "a process… to ensure… information recorded on paper… gets entered and reconciled into the EHR" ([SAFER Guide 2025](https://healthit.gov/wp-content/uploads/2025/06/SAFER-Guide-2.-Contingency-Planning-Final.pdf)).
+- In Portugal, the Ordem dos Médicos says acts recorded during an outage must be incorporated into the electronic record "as soon as possible" afterwards. It gives no method for doing so ([Parecer 05.2024](https://ordemdosmedicos.pt/files/pdfs/3e14-S2024_13551.pdf)).
 
-Every call is recorded in a local provenance ledger: where it ran (`inferenceSource`), which model and prompt version, latency, and how many requests reached a Gemini endpoint.
+## Try it
 
-## Run it
+**https://lantern-downtime.web.app**
+
+1. **Start the Ward 7B drill.** It is a synthetic night shift: a census plus two emailed versions of the downtime log, with the traps real logs have.
+2. Check what Lantern read each column as. Choose **Compare the two versions**.
+3. Review the queue. It is ordered patient identity first, then questions for the nurse, corrections, rows typed twice, rows missing from the newer file, new rows, and identical rows. The original cells are shown side by side, with differences highlighted.
+4. Open the **re-entry worklist**: export it as CSV or print it, and tick each act off as it is entered. **See how the drill went** compares your result with the answer key and with two common shortcuts.
+
+The experience depends on the browser:
+- **Desktop Chrome with Gemini Nano:** everything runs on the device and works offline once loaded.
+- **Any other browser:** the drill still works through the SDK's automatic cloud fallback, and every call says where it ran.
+- **Your own files** ("Use your own files") never leave the browser. Without Gemini Nano they are compared by hand, with identical rows and identity problems still found by code.
+- **`#/lab`:** diagnostics and the benchmark runner (spikes S1–S5).
+
+## How Lantern uses Firebase AI Logic hybrid inference
+
+One SDK (`firebase/ai`, `GoogleAIBackend`), three deliberate routes (`src/ai/models.ts`):
+
+| Route | Inference mode | Data | Used for |
+|---|---|---|---|
+| `user-local` | `ONLY_ON_DEVICE`, behind Lantern's own availability guard | files the user imported | column mapping, "same act?" pair judgments |
+| `drill-hybrid` | `PREFER_ON_DEVICE` | the bundled synthetic drill | the same tasks; without Gemini Nano the SDK falls back to the cloud |
+| `cloud` | `ONLY_IN_CLOUD` | bundled synthetic drill only | an independent second opinion on disputed pairs, with the patient's other rows as context |
+
+- **Guard against the SDK sending local data to the cloud.** In firebase 13.4.0, `ONLY_ON_DEVICE` is sent to the cloud when `LanguageModel` is missing (issue #10635). Lantern therefore checks `LanguageModel.availability()` itself and refuses user-data prompts unless the result is `available` (`src/ai/capability.ts`).
+- **Cloud payload guard.** A file may contribute to a cloud prompt only if it is a bundled drill file recognised by the SHA-256 of its bytes (`src/ai/cloudPayload.ts`). An imported file can never pass, whatever its name.
+- **App Check** with reCAPTCHA Enterprise and limited-use tokens. A token is requested only when a call actually goes to the cloud, so on-device work needs no network. AI Logic is set to require App Check.
+- **Remote Config** (`remoteconfig.template.json`) sets four values: `cloud_model` (`gemini-3.5-flash-lite`), `cloud_fallback_model` (`gemini-3.6-flash`), `cloud_second_opinion_enabled`, and the reserved `prompt_set_version` and `local_batch_rows`. Values are frozen per page load and fall back to in-code defaults offline.
+- **Provenance ledger** (`src/ai/ledger.ts`). It records one entry per call: task, prompt version, mode, `inferenceSource`, model, latency, cold start, references (never contents) of what was sent, and the number of requests a network watcher saw reach a Gemini endpoint during the call. It is shown live while Lantern works and in the margin of each review item.
+- **Models do the language, code does the rest.** Parsing, exact copies, patient identity, candidate pairs, the time and correction rules, dispositions and the worklist are deterministic (`src/core/`). Error-prone abbreviations (an ISMP subset, e.g. "MS") are never interpreted. They become open questions. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Results so far
+
+These come from a **synthetic drill on the developer's laptop**: n = 1 machine, no usability study. Full detail is in [docs/EVALUATION.md](docs/EVALUATION.md).
+
+| Method (Ward 7B drill, 21 same-act pairs) | Same-act recall | False merges | Corrections found | Open questions kept | Ready for re-entry (expected 27) |
+|---|---|---|---|---|---|
+| Take the latest file only | 0/21 | 0 | 0/3 | 0/2 | 26 (3 acts lost) |
+| Merge identical rows only | 12/21 | 0 | 0/3 | 2/2 | 36 (9 acts entered twice) |
+| Lantern, Gemini Nano only (runs 4–5) | 21/21 | 0 | 3/3 | 2/2 | 27 |
+| Lantern, no Nano, cloud fallback + second opinion | 21/21 | 0 | 3/3 | 2/2 | 27 |
+
+- With Gemini Nano, the whole comparison took about 21 s, plus 12.7–15.1 s of column mapping, with no cloud call.
+- Nano alone got 7 of 11 pair relations right. Lantern's rules brought that to 11/11: three documented corrections were promoted to amendments, and one genuine repeat dose was separated by time.
+
+## Privacy
+
+- Imported files are parsed in the browser and stay in its IndexedDB. Nothing about them is uploaded or synced.
+- Prompts built from imported files run only on Gemini Nano. If the device has no ready model, Lantern blocks the call and makes no request (measured, Lab S2).
+- The cloud only ever sees the bundled synthetic drill, enforced by content hash. The reviewer can preview the exact second-opinion request before sending it. It carries no patient name, hospital number or bed field.
+- Every model call is in the ledger with the measured number of requests that reached a Gemini endpoint. Details are in [docs/PRIVACY.md](docs/PRIVACY.md).
+
+## Run it locally
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in your Firebase web config + reCAPTCHA Enterprise site key
-npm run dev                  # http://localhost:5173  (#/lab for the feasibility tests)
-npm test
+cp .env.example .env.local   # your Firebase web config + reCAPTCHA Enterprise site key
+npm run dev                  # http://localhost:5173  (#/lab for diagnostics)
+npm test                     # Vitest: parsing, mapping, cloud guard, the drill end to end
+npm run build                # type-check + production build (PWA, precaches the drill)
+npx firebase deploy --only hosting,remoteconfig
 ```
 
-On-device inference needs desktop Chrome with Gemini Nano (see [Chrome's hardware requirements](https://developer.chrome.com/docs/ai/get-started)). Other browsers still run the synthetic drill through the cloud fallback.
+To set up a Firebase project:
+1. Enable AI Logic with the Gemini Developer API.
+2. Register a web app.
+3. Create a score-based reCAPTCHA Enterprise key for your hosting domains and register it in App Check.
+4. For local development, set `VITE_APPCHECK_DEBUG=true` and register the printed debug token. Never commit it.
 
-## License
+On-device inference needs desktop Chrome with Gemini Nano ([hardware requirements](https://developer.chrome.com/docs/ai/get-started)). Gemini Nano supports English, Spanish, Japanese, German and French, so the drill and prompts are in English.
+
+## Project layout
+
+```
+src/ai/          model routes, capability guard, cloud payload guard, network watcher, ledger, prompts/v1
+src/core/        deterministic pipeline: parse, profile, mapping, acts, identity, candidates, reconcile, worklist, score
+src/app/         pipeline orchestration, review items, session state (Dexie/IndexedDB)
+src/screens/     Start, Sources (columns), Review, Worklist, Result, Working overlay, Lab
+src/firebase/    Firebase init + App Check, Remote Config
+scripts/         build-drill.mjs: generates the synthetic drill and its answer key
+public/fixtures/ drill/ (frozen benchmark) and dev/ (tuning sheets)
+tests/core/      Vitest suites
+docs/            ARCHITECTURE, PRIVACY, EVALUATION, evaluation/ (dated raw logs)
+```
+
+## Built during the hackathon
+
+The repository was created on 2026-11-21, and all code in it was written from that date on, for this hackathon. No pre-existing project code was reused.
+
+Third-party libraries:
+- Firebase JS SDK 13.4.0 (AI Logic, App Check, Remote Config)
+- React 19
+- Dexie 4
+- SheetJS Community Edition 0.20.3
+- lucide-react
+- Tailwind CSS 4
+- Vite 8 with vite-plugin-pwa
+- Vitest
+- TypeScript
+
+Fonts are Atkinson Hyperlegible Next and Mono, from Google Fonts.
+
+## Licence
 
 [Apache-2.0](LICENSE)
