@@ -1,0 +1,59 @@
+{
+  "_about": "Development answer key for the day-1 spikes (column mapping + extraction). Synthetic data, fictional patients. Each field lists acceptable values (case-insensitive); null means the field is not scored. 'measurement' is scored by containment. This set is for tuning only; the frozen benchmark lives elsewhere.",
+  "variants": [
+    {
+      "file": "variant-a.csv",
+      "label": "Tidy headers",
+      "mapping": ["bed", "patient_name", "patient_id", "event_time", "act", "notes", "documented_by"],
+      "entry": { "act": 4, "notes": 5, "time": 3 },
+      "rows": [
+        { "act_type": ["medication"], "event_time": ["22:15"], "medication": ["paracetamol"], "dose": ["1g"], "route": ["iv"], "measurement": ["38.6"] },
+        { "act_type": ["observation"], "event_time": ["22:40"], "medication": [""], "dose": [""], "route": [""], "measurement": ["92/58"] },
+        { "act_type": ["medication"], "event_time": ["23:05"], "medication": ["morphine"], "dose": ["2mg"], "route": ["sc"], "measurement": null },
+        { "act_type": ["observation", "medication"], "event_time": ["23:30"], "medication": null, "dose": null, "route": [""], "measurement": ["3.1"] },
+        { "act_type": ["fluids", "medication"], "event_time": ["00:10"], "medication": ["nacl 0.9%", "nacl"], "dose": ["1l"], "route": ["iv"], "measurement": null },
+        { "act_type": ["incident"], "event_time": ["00:45"], "medication": [""], "dose": [""], "route": [""], "measurement": null },
+        { "act_type": ["medication"], "event_time": ["01:20"], "medication": ["ceftriaxone"], "dose": ["2g"], "route": ["iv"], "measurement": null },
+        { "act_type": ["transfer"], "event_time": ["02:00"], "medication": [""], "dose": [""], "route": [""], "measurement": null },
+        { "act_type": ["observation", "care", "procedure"], "event_time": ["02:30"], "medication": [""], "dose": [""], "route": [""], "measurement": ["30ml/2h"] },
+        { "act_type": ["medication"], "event_time": ["03:15"], "medication": ["enoxaparin"], "dose": ["40mg"], "route": ["sc"], "measurement": null }
+      ]
+    },
+    {
+      "file": "variant-b.csv",
+      "label": "Abbreviated headers",
+      "mapping": ["bed", "patient_name", "patient_id", "event_time", "act", "notes", "documented_by"],
+      "entry": { "act": 4, "notes": 5, "time": 3 },
+      "rows": [
+        { "act_type": ["medication"], "event_time": ["2215"], "medication": ["amoxiclav"], "dose": ["1.2g"], "route": ["iv"], "measurement": null },
+        { "act_type": ["observation", "medication"], "event_time": ["2245"], "medication": null, "dose": null, "route": null, "measurement": ["news 6", "rr 24", "spo2 91%"] },
+        { "act_type": ["medication"], "event_time": ["2320"], "medication": ["insulin novorapid", "novorapid", "insulin"], "dose": ["4u"], "route": ["sc"], "measurement": null },
+        { "act_type": ["medication"], "event_time": ["0005"], "medication": ["furosemide"], "dose": ["40mg"], "route": ["iv"], "measurement": null },
+        { "act_type": ["procedure", "incident"], "event_time": ["0050"], "medication": [""], "dose": [""], "route": [""], "measurement": null },
+        { "act_type": ["medication"], "event_time": ["0130"], "medication": ["oxycodone"], "dose": ["5mg"], "route": ["po"], "measurement": null },
+        { "act_type": ["medication"], "event_time": ["0200"], "medication": ["metoclopramide"], "dose": ["10mg"], "route": ["iv"], "measurement": null },
+        { "act_type": ["communication"], "event_time": ["0240"], "medication": [""], "dose": [""], "route": [""], "measurement": null },
+        { "act_type": ["medication"], "event_time": ["0315"], "medication": ["paracetamol"], "dose": ["1g"], "route": ["po"], "measurement": null },
+        { "act_type": ["medication", "fluids"], "event_time": ["0400"], "medication": ["heparin", "heparin infusion"], "dose": ["1400u/h"], "route": [""], "measurement": null }
+      ]
+    },
+    {
+      "file": "variant-c.csv",
+      "label": "One free-text column",
+      "mapping": ["bed", "patient", "act", "documented_by", "ignore"],
+      "entry": { "act": 2, "notes": null, "time": null },
+      "rows": [
+        { "act_type": ["observation"], "event_time": ["04:10"], "medication": ["", "paracetamol"], "dose": [""], "route": [""], "measurement": ["37.4"] },
+        { "act_type": ["observation", "fluids"], "event_time": ["04:30"], "medication": [""], "dose": null, "route": [""], "measurement": ["104/66"] },
+        { "act_type": ["observation", "care", "other"], "event_time": ["05:00"], "medication": [""], "dose": [""], "route": [""], "measurement": null },
+        { "act_type": ["observation"], "event_time": ["05:20"], "medication": [""], "dose": [""], "route": [""], "measurement": ["6.2"] },
+        { "act_type": ["fluids", "medication"], "event_time": ["05:45"], "medication": ["hartmann's", "hartmann's 1l", "iv fluids"], "dose": ["1l", ""], "route": ["iv"], "measurement": null },
+        { "act_type": ["observation"], "event_time": ["06:00"], "medication": [""], "dose": [""], "route": [""], "measurement": ["gcs 15"] },
+        { "act_type": ["specimen", "procedure"], "event_time": ["06:15"], "medication": ["", "vancomycin"], "dose": [""], "route": [""], "measurement": null },
+        { "act_type": ["care", "other", "observation"], "event_time": ["06:30"], "medication": [""], "dose": [""], "route": [""], "measurement": null },
+        { "act_type": ["observation"], "event_time": ["06:40"], "medication": [""], "dose": [""], "route": [""], "measurement": ["120ml/2h"] },
+        { "act_type": ["care", "other", "procedure"], "event_time": ["06:50"], "medication": [""], "dose": [""], "route": [""], "measurement": null }
+      ]
+    }
+  ]
+}

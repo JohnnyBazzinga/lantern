@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dev-dist/
+coverage/
+.firebase/
+*.log
+.env
+.env.local
+.env.*.local
+.DS_Store
+# never commit App Check debug tokens or benchmark runs containing real data
+debug-token*

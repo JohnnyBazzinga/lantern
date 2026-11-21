@@ -1,0 +1,11 @@
+Bed,Patient,Patient No.,Time,What was done,Notes,Nurse
+7,Ana Ribeiro,H-204811,22:15,Paracetamol 1g IV given,temp 38.6 before,RN JM
+12,Thomas Hale,H-198332,22:40,Obs: BP 92/58 HR 104,doctor informed,RN JM
+3,Fatima Rahman,H-210045,23:05,Morphine 2mg SC PRN for pain 7/10,,RN KS
+15,George Mills,H-187220,23:30,Blood glucose 3.1 mmol/L,"15g glucose gel given, recheck 4.8 at 23:50",RN KS
+9,Lucia Moreno,H-205598,00:10,IV fluids NaCl 0.9% 1L started,line R arm,RN JM
+1,Peter Novak,H-176604,00:45,Fall found on floor,"no injury seen, doctor reviewed",RN AL
+18,Grace Owusu,H-209912,01:20,Ceftriaxone 2g IV given,delayed 1h (pharmacy),RN AL
+5,Henry Walsh,H-190027,02:00,Transferred to bed 6 (side room),,RN KS
+11,Sofia Lind,H-207734,02:30,Urine output 30ml/2h,catheter flushed,RN JM
+20,Omar Haddad,H-203381,03:15,Enoxaparin 40mg SC given,,RN AL

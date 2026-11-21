@@ -1,0 +1,11 @@
+bed #,pt name,hosp no,when,drug + dose,comments,initials
+4,R. Costa,H-201190,2215,amoxiclav 1.2g iv,given late - cannula tissued,KS
+8,Mei Chen,H-199850,2245,-,"NEWS 6 - RR 24 SpO2 91% on air, O2 2L started",JM
+13,D. Petrov,H-208821,2320,insulin novorapid 4u sc,BM 14.2 pre,KS
+2,Ellen Brooks,H-185503,0005,furosemide 40mg IV,weight 81.4kg,AL
+16,Kwame Asante,H-211076,0050,-,"pt agitated, removed NG tube, reinserted 01:10",AL
+10,Ines Duarte,H-206642,0130,oxycodone 5mg po prn,pain 6/10,JM
+19,Ravi Patel,H-197718,0200,metoclopramide 10mg iv,vomited x2,KS
+6,Henry Walsh,H-190027,0240,-,family phoned - updated re condition,KS
+14,Nora Quinn,H-204430,0315,paracetamol 1g po,temp 37.9,JM
+17,Liam Burke,H-202267,0400,heparin infusion rate changed to 1400u/h,APTT 1.4,AL

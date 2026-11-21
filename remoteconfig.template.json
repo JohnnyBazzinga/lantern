@@ -1,0 +1,24 @@
+{
+  "parameters": {
+    "cloud_model": {
+      "defaultValue": { "value": "gemini-3.8-flash" },
+      "description": "Cloud Gemini model used for the second opinion on disputed matches (bundled synthetic data only).",
+      "valueType": "STRING"
+    },
+    "prompt_set_version": {
+      "defaultValue": { "value": "v1" },
+      "description": "Versioned prompt set shipped with the app; recorded in the provenance ledger.",
+      "valueType": "STRING"
+    },
+    "cloud_second_opinion_enabled": {
+      "defaultValue": { "value": "true" },
+      "description": "Lets hospital IT switch the cloud second opinion off centrally.",
+      "valueType": "BOOLEAN"
+    },
+    "local_batch_rows": {
+      "defaultValue": { "value": "5" },
+      "description": "Rows per on-device extraction batch (keeps prompts inside Gemini Nano's context window).",
+      "valueType": "NUMBER"
+    }
+  }
+}
