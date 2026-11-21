@@ -1,4 +1,4 @@
-import { errorProneAbbreviations } from './text';
+import { errorProneAbbreviations, normText } from './text';
 import type { Act, Disposition, IdentityIssue, MatchCandidate, Relation } from './types';
 
 /**
@@ -8,7 +8,7 @@ import type { Act, Disposition, IdentityIssue, MatchCandidate, Relation } from '
  * verdict), never by a model's self-reported confidence.
  */
 
-export type EscalationReason = 'abstained' | 'competing-match' | 'numbers-differ' | 'local-unavailable';
+export type EscalationReason = 'abstained' | 'competing-match' | 'numbers-differ' | 'local-unavailable' | 'rule-override';
 
 export interface ResolvedPair {
   candidate: MatchCandidate;
@@ -32,12 +32,41 @@ export const GROUP_ORDER: ReviewGroup[] = ['identity', 'open', 'changed', 'likel
 
 const numbers = (s: string) => (s.match(/\d+(?:\.\d+)?/g) ?? []).sort().join(',');
 
-/** The verdict to use for a candidate: cloud second opinion if present, else local, else exact. */
-export function verdict(c: MatchCandidate): { relation: Relation; basis: ResolvedPair['basis'] } | null {
+/** Words that make a later row a documented correction rather than a re-typing. */
+const CORRECTION_NOTE =
+  /\b(?:corr(?:ected|ection)?\.?|amend(?:ed|ment)?|error|mistake|wrong(?:ly)?|not given|was not|instead of|should (?:be|read)|actually|by mistake)\b/i;
+
+export const hasCorrectionNote = (b: Act) => CORRECTION_NOTE.test(`${b.actText} ${b.notes}`);
+
+/** Same-act verdicts cannot span recorded times further apart than this unless the sheet documents a correction. */
+const MAX_COPY_GAP_MIN = 30;
+
+/**
+ * Deterministic guardrails around every model verdict (local or cloud):
+ *  - a correction must be documented in the sheet ("corrected", "corr.", "not given"…)
+ *  - two rows recorded more than 30 minutes apart, with no correction note, are separate acts
+ *    (a repeated PRN dose is not a duplicate, however identical the text)
+ */
+export function guard(relation: Relation, a: Act, b: Act): { relation: Relation; rule?: string } {
+  const marked = hasCorrectionNote(b);
+  const gap = a.timeMinutes !== null && b.timeMinutes !== null ? Math.abs(a.timeMinutes - b.timeMinutes) : null;
+  if ((relation === 'same' || relation === 'amendment') && gap !== null && gap > MAX_COPY_GAP_MIN && !marked)
+    return { relation: 'separate', rule: `recorded ${Math.floor(gap / 60)}h${String(gap % 60).padStart(2, '0')} apart with no correction note: a repeated act, not a copy` };
+  if (relation === 'amendment' && !marked) return { relation: 'same', rule: 'no correction note in the sheet: a re-typed copy, not a correction' };
+  if (relation === 'same' && marked) return { relation: 'amendment', rule: 'the later row documents a correction' };
+  return { relation };
+}
+
+/** The verdict to use for a candidate: cloud second opinion if present, else local, else exact; always guarded. */
+export function verdict(
+  c: MatchCandidate,
+  acts: Map<string, Act>,
+): { relation: Relation; basis: ResolvedPair['basis']; rule?: string } | null {
   if (c.exact) return { relation: 'same', basis: 'exact' };
-  if (c.cloud) return { relation: c.cloud.relation, basis: 'cloud' };
-  if (c.local) return { relation: c.local.relation, basis: 'local' };
-  return null;
+  const j = c.cloud ?? c.local;
+  if (!j) return null;
+  const g = guard(j.relation, acts.get(c.a)!, acts.get(c.b)!);
+  return { relation: g.relation, basis: c.cloud ? 'cloud' : 'local', ...(g.rule && { rule: g.rule }) };
 }
 
 export function escalations(cands: MatchCandidate[], acts: Map<string, Act>): Map<string, EscalationReason[]> {
@@ -46,13 +75,18 @@ export function escalations(cands: MatchCandidate[], acts: Map<string, Act>): Ma
   const linkedB = new Map<string, string[]>();
   for (const c of cands) {
     if (c.exact) continue;
-    if (!c.local) add(c.id, 'local-unavailable');
-    else if (c.local.relation === 'insufficient') add(c.id, 'abstained');
-    if (c.local && (c.local.relation === 'same' || c.local.relation === 'amendment')) {
+    if (!c.local) {
+      add(c.id, 'local-unavailable');
+      continue;
+    }
+    const a = acts.get(c.a)!;
+    const b = acts.get(c.b)!;
+    const g = guard(c.local.relation, a, b);
+    if (g.relation !== c.local.relation) add(c.id, 'rule-override');
+    if (g.relation === 'insufficient') add(c.id, 'abstained');
+    if (g.relation === 'same' || g.relation === 'amendment') {
       linkedB.set(c.a, [...(linkedB.get(c.a) ?? []), c.id]);
-      const a = acts.get(c.a)!;
-      const b = acts.get(c.b)!;
-      if (c.local.relation === 'same' && numbers(`${a.actText} ${a.notes}`) !== numbers(`${b.actText} ${b.notes}`)) add(c.id, 'numbers-differ');
+      if (g.relation === 'same' && numbers(`${a.actText} ${a.notes}`) !== numbers(`${b.actText} ${b.notes}`)) add(c.id, 'numbers-differ');
     }
   }
   for (const ids of linkedB.values()) if (ids.length > 1) ids.forEach((id) => add(id, 'competing-match'));
@@ -76,7 +110,7 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
   const linkedA = new Set<string>();
   const linkedB = new Set<string>();
   const ranked = candidates
-    .map((c) => ({ c, v: verdict(c) }))
+    .map((c) => ({ c, v: verdict(c, byId) }))
     .filter((x): x is { c: MatchCandidate; v: NonNullable<ReturnType<typeof verdict>> } => !!x.v && (x.v.relation === 'same' || x.v.relation === 'amendment'))
     .sort((x, y) => Number(y.c.exact) - Number(x.c.exact) || y.c.similarity - x.c.similarity);
   const competing = new Set(
@@ -91,8 +125,12 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
     linkedB.add(c.b);
     const contested = competing.has(c.id) && v.basis !== 'cloud';
     if (v.relation === 'amendment') {
-      const judged = c.cloud ?? c.local;
-      const fields = judged?.changed.length ? judged.changed : ['details'];
+      // what changed is computed from the cells themselves, not taken from the model
+      const fields = [
+        ...(b.eventTime && normText(a.eventTime) !== normText(b.eventTime) ? ['time'] : []),
+        ...(normText(a.actText) !== normText(b.actText) ? ['details'] : []),
+      ];
+      if (!fields.length) fields.push('details');
       set({
         actId: a.id,
         disposition: {
@@ -134,7 +172,7 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
   for (const b of later) {
     if (proposals.has(b.id)) continue;
     // a pair the model never judged (no local model): keep the act, but put the possible duplicate in front of the reviewer
-    const unjudged = candidates.find((c) => c.b === b.id && !verdict(c) && !linkedA.has(c.a));
+    const unjudged = candidates.find((c) => c.b === b.id && !verdict(c, byId) && !linkedA.has(c.a));
     if (unjudged) {
       const a = byId.get(unjudged.a)!;
       set({ actId: b.id, disposition: { kind: 'approved' }, because: `Possibly the same act as ${a.versionLabel} row ${a.row + 2}; no on-device model was available, decide manually`, needsReview: true, group: 'likely-same' });
@@ -143,7 +181,7 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
 
   // 3) open questions override: insufficient verdicts and error-prone abbreviations are never guessed
   for (const c of candidates) {
-    const v = verdict(c);
+    const v = verdict(c, byId);
     if (v?.relation !== 'insufficient' || linkedB.has(c.b)) continue;
     const b = byId.get(c.b)!;
     set({ actId: b.id, disposition: { kind: 'unresolved', owner: owner(b), question: 'Cannot be safely linked to the earlier entry' }, because: (c.cloud ?? c.local)?.evidence || 'Not enough detail to link', needsReview: true, group: 'open' });

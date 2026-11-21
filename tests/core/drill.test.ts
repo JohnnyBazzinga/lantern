@@ -67,6 +67,29 @@ describe('Ward 7B drill', () => {
     expect(worklistCsv(wl)).toContain('Open question');
   });
 
+  it("Lantern's rules neutralise a careless judge (re-typings called corrections, repeats called copies)", async () => {
+    const { A, B, census, key } = await loadDrill();
+    const identity = resolveIdentities([...A, ...B], census);
+    const cands = findCandidates(A, B);
+    const truth = oracle(key, [...A, ...B]);
+    for (const c of cands) {
+      if (c.exact) continue;
+      const t = truth(c).relation;
+      // the failure modes we worry about in a small on-device model
+      const careless = t === 'same' ? 'amendment' : t === 'separate' ? 'same' : 'same';
+      c.local = { relation: careless, changed: [], evidence: 'careless', source: 'on_device' };
+    }
+    const proposals = propose({ earlier: A, later: B, candidates: cands, identity });
+    const s = scoreDrill(key, [...A, ...B], proposals, identity);
+    expect(s.spuriousCorrections).toBe(0);
+    expect(s.amendmentsFound).toBe('3/3');
+    expect(s.falseMerges).toEqual([]);
+    expect(s.worklist.ready).toBe(27);
+    // the corrected time comes from the cells, not from the model
+    const henry = proposals.find((p) => p.disposition.kind === 'corrected' && p.disposition.changes.some((ch) => ch.field === 'time'));
+    expect(henry?.disposition.kind === 'corrected' && henry.disposition.changes.find((ch) => ch.field === 'time')?.to).toBe('02:30');
+  });
+
   it('baseline "exact copies only" shows what a naive merge loses', async () => {
     const { A, B, census, key } = await loadDrill();
     const identity = resolveIdentities([...A, ...B], census);

@@ -1,6 +1,6 @@
 import { loadDrillFiles } from '../app/files';
 import { mapFile, reconcileFiles, type Progress } from '../app/pipeline';
-import { propose, type Proposal } from '../core/reconcile';
+import { guard, propose, type Proposal } from '../core/reconcile';
 import { goldRelation, keyIds, scoreDrill, type AnswerKey, type DrillScore } from '../core/score';
 import type { CanonicalField } from '../core/fields';
 
@@ -21,7 +21,8 @@ const EXPECTED_MAPPING: Record<string, CanonicalField[]> = {
 export interface BenchResult {
   mapping: { file: string; correct: number; total: number; flagged: number }[];
   methods: { name: string; score: DrillScore }[];
-  local: { calls: number; onDevice: number; inCloud: number; agreeWithGold: number; judged: number };
+  local: { calls: number; onDevice: number; inCloud: number; agreeWithGold: number; agreeAfterGuard: number; judged: number };
+  pairs: { pair: string; gold: string; local: string; localGuarded: string; cloud: string; rule: string }[];
   cloud: { calls: number; corrected: number; introducedErrors: number; agreeWithGold: number } | null;
   ms: { mapping: number; reconcile: number };
 }
@@ -69,14 +70,30 @@ export async function runDrillBench(o: { cloudModel: string; withCloud: boolean;
   const ok = (rel: string | undefined, g: string) => rel === g || (g === 'separate' && rel === 'insufficient');
   const withLocal = judged.filter((c) => c.local);
   const withCloud = judged.filter((c) => c.cloud);
+  const byId = new Map(r.acts.map((a) => [a.id, a]));
+  const guarded = (rel: string | undefined, c: (typeof judged)[0]) =>
+    rel ? guard(rel as Parameters<typeof guard>[0], byId.get(c.a)!, byId.get(c.b)!) : { relation: '—' as const, rule: undefined };
+  const pairs = judged.map((c) => {
+    const lg = guarded(c.local?.relation, c);
+    return {
+      pair: `${ids.get(c.a) ?? c.a} ~ ${ids.get(c.b) ?? c.b}`,
+      gold: gold(c),
+      local: c.local?.relation ?? '—',
+      localGuarded: lg.relation,
+      cloud: c.cloud ? guarded(c.cloud.relation, c).relation : '—',
+      rule: lg.rule ?? '',
+    };
+  });
   return {
     mapping,
     methods,
+    pairs,
     local: {
       calls: withLocal.length,
       onDevice: withLocal.filter((c) => c.local!.source === 'on_device').length,
       inCloud: withLocal.filter((c) => c.local!.source === 'in_cloud').length,
       agreeWithGold: withLocal.filter((c) => ok(c.local!.relation, gold(c))).length,
+      agreeAfterGuard: withLocal.filter((c) => ok(guarded(c.local!.relation, c).relation, gold(c))).length,
       judged: judged.length,
     },
     cloud: o.withCloud

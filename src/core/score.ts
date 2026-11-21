@@ -21,6 +21,8 @@ export interface DrillScore {
   sameActPrecision: string;
   falseMerges: string[];
   amendmentsFound: string;
+  /** rows "corrected" although the sheet documents no correction for them (a re-typing rewritten as a correction) */
+  spuriousCorrections: number;
   openQuestionsKept: string;
   earlierOnlyKept: string;
   identityFound: string;
@@ -48,6 +50,8 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
   const proposedPairs = proposals.filter((p) => p.disposition.kind === 'duplicate').length;
   const falseMerges = key.expected.mustNotMerge.filter((p) => linked(p.v1, p.v2)).map((p) => `${p.v1}~${p.v2}`);
   const amend = key.expected.amendments.filter((p) => prop.get(actOf.get(p.v1) ?? '')?.disposition.kind === 'corrected' && linked(p.v1, p.v2)).length;
+  const goldAmended = new Set(key.expected.amendments.map((p) => actOf.get(p.v1)));
+  const spurious = proposals.filter((p) => p.disposition.kind === 'corrected' && !goldAmended.has(p.actId)).length;
   const open = key.expected.openQuestions.filter((q) => prop.get(actOf.get(q.v2) ?? '')?.disposition.kind === 'unresolved').length;
   const earlier = key.expected.onlyInV1.filter((id) => {
     const k = prop.get(actOf.get(id) ?? '')?.disposition.kind;
@@ -64,11 +68,12 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
     sameActPrecision: f(hits, proposedPairs),
     falseMerges,
     amendmentsFound: f(amend, key.expected.amendments.length),
+    spuriousCorrections: spurious,
     openQuestionsKept: f(open, key.expected.openQuestions.length),
     earlierOnlyKept: f(earlier, key.expected.onlyInV1.length),
     identityFound: f(idFound, key.expected.identityConflicts.length),
     worklist: { ready, unresolved, expectedReady: key.expected.worklist.approvedActs, expectedUnresolved: key.expected.worklist.unresolved },
-    raw: { hits, gold: gold.length, proposedPairs, falseMerges: falseMerges.length, amend, open, earlier, idFound, ready, unresolved },
+    raw: { hits, gold: gold.length, proposedPairs, falseMerges: falseMerges.length, amend, spurious, open, earlier, idFound, ready, unresolved },
   };
 }
 

@@ -289,17 +289,23 @@ export default function Lab() {
       r.mapping.forEach((m) => lines.push(`   ${m.file}: ${m.correct}/${m.total} correct, ${m.flagged} flagged for review`));
       lines.push(
         '',
-        `PAIR JUDGMENTS: ${r.local.calls}/${r.local.judged} judged locally (${r.local.onDevice} on_device, ${r.local.inCloud} in_cloud), ${r.local.agreeWithGold} agree with the answer key`,
+        `PAIR JUDGMENTS: ${r.local.calls}/${r.local.judged} judged locally (${r.local.onDevice} on_device, ${r.local.inCloud} in_cloud); agree with the answer key: ${r.local.agreeWithGold} raw → ${r.local.agreeAfterGuard} after Lantern's rules`,
       );
+      r.pairs.forEach((p) =>
+        lines.push(
+          `   ${p.local === p.gold || (p.gold === 'separate' && p.local === 'insufficient') ? '✓' : p.localGuarded === p.gold ? '↻' : '✗'} ${p.pair.padEnd(16)} gold ${p.gold.padEnd(10)} nano ${p.local.padEnd(12)} → ${p.localGuarded.padEnd(12)}${p.cloud !== '—' ? ` cloud ${p.cloud}` : ''}${p.rule ? `  (${p.rule})` : ''}`,
+        ),
+      );
+      lines.push('   ✓ Nano right · ↻ fixed by a rule · ✗ still wrong');
       if (r.cloud)
         lines.push(
           `SECOND OPINION: ${r.cloud.calls} cloud calls, ${r.cloud.agreeWithGold} agree with the key, corrected ${r.cloud.corrected} local errors, introduced ${r.cloud.introducedErrors} new errors`,
         );
-      lines.push('', 'METHOD                                   | same-act recall | precision | false merges | corrections | open Qs | v1-only kept | identity | ready (27) | open (2)');
+      lines.push('', 'METHOD                                   | same-act recall | precision | false merges | corrections | false corr. | open Qs | v1-only kept | identity | ready (27) | open (2)');
       for (const m of r.methods) {
         const s = m.score;
         lines.push(
-          `${m.name.padEnd(41)}| ${s.sameActRecall.padEnd(16)}| ${s.sameActPrecision.padEnd(10)}| ${String(s.falseMerges.length).padEnd(13)}| ${s.amendmentsFound.padEnd(12)}| ${s.openQuestionsKept.padEnd(8)}| ${s.earlierOnlyKept.padEnd(13)}| ${s.identityFound.padEnd(9)}| ${String(s.worklist.ready).padEnd(11)}| ${s.worklist.unresolved}`,
+          `${m.name.padEnd(41)}| ${s.sameActRecall.padEnd(16)}| ${s.sameActPrecision.padEnd(10)}| ${String(s.falseMerges.length).padEnd(13)}| ${s.amendmentsFound.padEnd(12)}| ${String(s.spuriousCorrections).padEnd(12)}| ${s.openQuestionsKept.padEnd(8)}| ${s.earlierOnlyKept.padEnd(13)}| ${s.identityFound.padEnd(9)}| ${String(s.worklist.ready).padEnd(11)}| ${s.worklist.unresolved}`,
         );
         if (s.falseMerges.length) lines.push(`      false merges: ${s.falseMerges.join(', ')}`);
       }
