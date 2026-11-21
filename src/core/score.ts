@@ -1,0 +1,77 @@
+import type { Proposal } from './reconcile';
+import type { Act, IdentityIssue } from './types';
+
+/** Scores proposals against the frozen drill answer key (public/fixtures/drill/answer-key.json). */
+
+export interface AnswerKey {
+  rows: { v1: { id: string; sheetRow: number }[]; v2: { id: string; sheetRow: number; kind: string; of?: string }[] };
+  expected: {
+    onlyInV1: string[];
+    sameActPairs: { v1: string; v2: string; kind: string }[];
+    mustNotMerge: { v1: string; v2: string; why: string }[];
+    amendments: { v1: string; v2: string; field: string }[];
+    openQuestions: { v2: string }[];
+    identityConflicts: { rows: string[]; kind: string }[];
+    worklist: { approvedActs: number; unresolved: number };
+  };
+}
+
+export interface DrillScore {
+  sameActRecall: string;
+  sameActPrecision: string;
+  falseMerges: string[];
+  amendmentsFound: string;
+  openQuestionsKept: string;
+  earlierOnlyKept: string;
+  identityFound: string;
+  worklist: { ready: number; unresolved: number; expectedReady: number; expectedUnresolved: number };
+  /** compact numbers for charts */
+  raw: Record<string, number>;
+}
+
+export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], identity: IdentityIssue[]): DrillScore {
+  const keyId = new Map<string, string>();
+  for (const a of acts) {
+    const list = a.fileId === 'v1' ? key.rows.v1 : a.fileId === 'v2' ? key.rows.v2 : [];
+    const k = list.find((r) => r.sheetRow === a.row + 2);
+    if (k) keyId.set(a.id, k.id);
+  }
+  const actOf = new Map([...keyId.entries()].map(([act, k]) => [k, act]));
+  const prop = new Map(proposals.map((p) => [p.actId, p]));
+  const linked = (v1: string, v2: string) => {
+    const d = prop.get(actOf.get(v2) ?? '')?.disposition;
+    return d?.kind === 'duplicate' && d.of === actOf.get(v1);
+  };
+
+  const gold = key.expected.sameActPairs;
+  const hits = gold.filter((p) => linked(p.v1, p.v2)).length;
+  const proposedPairs = proposals.filter((p) => p.disposition.kind === 'duplicate').length;
+  const falseMerges = key.expected.mustNotMerge.filter((p) => linked(p.v1, p.v2)).map((p) => `${p.v1}~${p.v2}`);
+  const amend = key.expected.amendments.filter((p) => prop.get(actOf.get(p.v1) ?? '')?.disposition.kind === 'corrected' && linked(p.v1, p.v2)).length;
+  const open = key.expected.openQuestions.filter((q) => prop.get(actOf.get(q.v2) ?? '')?.disposition.kind === 'unresolved').length;
+  const earlier = key.expected.onlyInV1.filter((id) => {
+    const k = prop.get(actOf.get(id) ?? '')?.disposition.kind;
+    return k === 'approved' || k === 'corrected';
+  }).length;
+  const idFound = key.expected.identityConflicts.filter((c) =>
+    identity.some((i) => kindMatches(i.kind, c.kind) && i.actIds.some((a) => c.rows.includes(keyId.get(a) ?? ''))),
+  ).length;
+  const ready = proposals.filter((p) => p.disposition.kind === 'approved' || p.disposition.kind === 'corrected').length;
+  const unresolved = proposals.filter((p) => p.disposition.kind === 'unresolved').length;
+  const f = (n: number, d: number) => `${n}/${d}`;
+  return {
+    sameActRecall: f(hits, gold.length),
+    sameActPrecision: f(hits, proposedPairs),
+    falseMerges,
+    amendmentsFound: f(amend, key.expected.amendments.length),
+    openQuestionsKept: f(open, key.expected.openQuestions.length),
+    earlierOnlyKept: f(earlier, key.expected.onlyInV1.length),
+    identityFound: f(idFound, key.expected.identityConflicts.length),
+    worklist: { ready, unresolved, expectedReady: key.expected.worklist.approvedActs, expectedUnresolved: key.expected.worklist.unresolved },
+    raw: { hits, gold: gold.length, proposedPairs, falseMerges: falseMerges.length, amend, open, earlier, idFound, ready, unresolved },
+  };
+}
+
+function kindMatches(found: string, expected: string): boolean {
+  return found === expected || (expected === 'id-mismatch' && found === 'id-name-conflict');
+}
