@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getToken } from 'firebase/app-check';
 import { Cloud, Cpu, Download, FlaskConical, ShieldCheck, WifiOff } from 'lucide-react';
 import { environmentReport, type EnvironmentReport } from '../ai/capability';
-import { subscribeLedger, ledgerSummary, type LedgerEntry } from '../ai/ledger';
+import { getLedger, subscribeLedger, ledgerSummary, type LedgerEntry } from '../ai/ledger';
 import { prepareLocalModel, runTask, type Route } from '../ai/models';
 import { mapColumnsInput, mapColumnsTask } from '../ai/prompts/v1/mapColumns';
 import { extractActInput, extractActTask } from '../ai/prompts/v1/extractAct';
@@ -321,7 +321,13 @@ export default function Lab() {
 
   async function runS4() {
     setS4({ status: 'running', lines: [] });
-    const lines: string[] = [];
+    const lines: string[] = [`build ${__BUILD_ID__}`, `Remote Config: ${config ? `${config.source}, cloud model ${config.cloudModel}, fallback ${config.cloudFallbackModel}` : 'not loaded yet'}`];
+    const seen = new Set(getLedger().map((e) => e.id));
+    const attempts = () =>
+      getLedger()
+        .filter((e) => !seen.has(e.id))
+        .reverse()
+        .map((e, i) => `attempt ${i + 1}: ${e.model}, ${e.inferenceSource}, ${e.latencyMs} ms${e.note ? `, ${e.note.slice(0, 140)}` : ''}`);
     try {
       const ac = getAppCheckInstance();
       if (ac) {
@@ -336,10 +342,10 @@ export default function Lab() {
         cloudModel,
         outgoingRefs: ['fixture:smoke-entry'],
       });
-      lines.push(`inferenceSource: ${r.inferenceSource}`, `model: ${cloudModel}`, `latency: ${r.latencyMs} ms`, `output: ${r.raw}`);
-      setS4({ status: r.inferenceSource === 'in_cloud' ? 'pass' : 'fail', lines, data: { latencyMs: r.latencyMs, model: cloudModel } });
+      lines.push(...attempts(), `inferenceSource: ${r.inferenceSource}`, `model: ${r.ledger.model}`, `latency: ${r.latencyMs} ms`, `output: ${r.raw}`);
+      setS4({ status: r.inferenceSource === 'in_cloud' ? 'pass' : 'fail', lines, data: { latencyMs: r.latencyMs, model: r.ledger.model } });
     } catch (e) {
-      lines.push(`error: ${e instanceof Error ? e.message : String(e)}`);
+      lines.push(...attempts(), `error: ${e instanceof Error ? e.message : String(e)}`);
       setS4({ status: 'fail', lines });
     }
   }
@@ -391,7 +397,8 @@ export default function Lab() {
         <Kv k="Local context window" v={env?.contextWindow ?? 'n/a'} />
         <Kv k="Firebase project" v={projectId ?? 'not configured'} />
         <Kv k="App Check" v={appCheckConfigured ? (appCheckDebugMode ? 'reCAPTCHA Enterprise (debug)' : 'reCAPTCHA Enterprise') : 'not configured'} />
-        <Kv k="Remote Config" v={config ? `${config.source} — cloud model ${config.cloudModel}` : '…'} />
+        <Kv k="Remote Config" v={config ? `${config.source}: cloud model ${config.cloudModel}, fallback ${config.cloudFallbackModel}` : '…'} />
+        <Kv k="Build" v={__BUILD_ID__} />
         <div className="sm:col-span-2 flex flex-wrap items-center gap-3 pt-1">
           <button onClick={prepare} className={btn}>
             <Download size={16} /> Prepare Gemini Nano (download / warm up)

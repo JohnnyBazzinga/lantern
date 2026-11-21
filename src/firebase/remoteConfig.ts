@@ -57,7 +57,8 @@ async function load(): Promise<LanternConfig> {
   let rc: RemoteConfig;
   try {
     rc = getRemoteConfig(app);
-    rc.settings.minimumFetchIntervalMillis = 60 * 60 * 1000;
+    // short, so a model switch made in the console reaches open browsers within minutes
+    rc.settings.minimumFetchIntervalMillis = 10 * 60 * 1000;
     rc.settings.fetchTimeoutMillis = 4000;
     rc.defaultConfig = { ...RC_DEFAULTS };
     await ensureInitialized(rc); // loads the last activated config from IndexedDB

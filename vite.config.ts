@@ -3,10 +3,21 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+
+// Shown in the Lab so a test report always says which build produced it.
+const commit = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return 'no-git';
+  }
+})();
 
 // Lantern must reload with no network at all (that is the whole point of a downtime tool),
 // so the app shell and the bundled synthetic drill fixtures are precached by the service worker.
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(`${commit} built ${new Date().toISOString().slice(0, 16)}Z`) },
   plugins: [
     react(),
     tailwindcss(),

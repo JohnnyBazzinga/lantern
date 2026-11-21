@@ -125,16 +125,26 @@ export async function runTask<T>(task: PromptTask<T>, input: string, opts: TaskO
   const fallback = (await loadConfig()).cloudFallbackModel;
   const plan = [opts.cloudModel, opts.cloudModel, ...(fallback && fallback !== opts.cloudModel ? [fallback] : [])];
   let last: unknown;
-  for (const [i, model] of plan.entries()) {
-    if (i > 0) await pause(1500 * i);
+  let failed = 0;
+  for (let i = 0; i < plan.length; ) {
+    const model = plan[i]!;
+    if (failed) await pause(1500 * failed);
     try {
-      return await attempt(task, input, opts, model, i > 0 ? `after ${i} failed cloud attempt${i > 1 ? 's' : ''}` : undefined);
+      return await attempt(task, input, opts, model, failed ? `after ${failed} failed cloud attempt${failed > 1 ? 's' : ''}` : undefined);
     } catch (e) {
       last = e;
+      failed++;
       if (!retryable(e) || !navigator.onLine) throw e;
+      i++;
+      // a model that timed out is overloaded: waiting on it again only doubles the delay
+      if (timedOut(e)) while (i < plan.length && plan[i] === model) i++;
     }
   }
   throw last;
+}
+
+function timedOut(e: unknown): boolean {
+  return (e as { name?: string }).name === 'AbortError' || /timeout has expired|timed? ?out|deadline/i.test(e instanceof Error ? e.message : String(e));
 }
 
 async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cloudModel: string, retryNote?: string): Promise<TaskResult<T>> {
