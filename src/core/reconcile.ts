@@ -1,4 +1,4 @@
-import { errorProneAbbreviations, normText } from './text';
+import { errorProneAbbreviations, normText, similarity } from './text';
 import type { Act, Disposition, IdentityIssue, MatchCandidate, Relation } from './types';
 
 /**
@@ -41,15 +41,28 @@ export const hasCorrectionNote = (b: Act) => CORRECTION_NOTE.test(`${b.actText} 
 /** Same-act verdicts cannot span recorded times further apart than this unless the sheet documents a correction. */
 const MAX_COPY_GAP_MIN = 30;
 
+/** Text similarity above which a documented correction at the same time is taken to amend the earlier row. */
+const MIN_CORRECTION_SIMILARITY = 0.3;
+
 /**
  * Deterministic guardrails around every model verdict (local or cloud):
  *  - a correction must be documented in the sheet ("corrected", "corr.", "not given"…)
+ *  - a documented correction for the same patient, at the same recorded time (±30 min), with similar
+ *    text, amends the earlier row even if the model saw "a different value"
  *  - two rows recorded more than 30 minutes apart, with no correction note, are separate acts
  *    (a repeated PRN dose is not a duplicate, however identical the text)
  */
 export function guard(relation: Relation, a: Act, b: Act): { relation: Relation; rule?: string } {
   const marked = hasCorrectionNote(b);
   const gap = a.timeMinutes !== null && b.timeMinutes !== null ? Math.abs(a.timeMinutes - b.timeMinutes) : null;
+  if (
+    (relation === 'separate' || relation === 'insufficient') &&
+    marked &&
+    gap !== null &&
+    gap <= MAX_COPY_GAP_MIN &&
+    similarity(a.actText, b.actText) >= MIN_CORRECTION_SIMILARITY
+  )
+    return { relation: 'amendment', rule: 'a documented correction of the same entry (same time, similar text)' };
   if ((relation === 'same' || relation === 'amendment') && gap !== null && gap > MAX_COPY_GAP_MIN && !marked)
     return { relation: 'separate', rule: `recorded ${Math.floor(gap / 60)}h${String(gap % 60).padStart(2, '0')} apart with no correction note: a repeated act, not a copy` };
   if (relation === 'amendment' && !marked) return { relation: 'same', rule: 'no correction note in the sheet: a re-typed copy, not a correction' };

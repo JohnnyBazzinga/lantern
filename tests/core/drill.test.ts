@@ -90,6 +90,42 @@ describe('Ward 7B drill', () => {
     expect(henry?.disposition.kind === 'corrected' && henry.disposition.changes.find((ch) => ch.field === 'time')?.to).toBe('02:30');
   });
 
+  it('reproduces the real on-device run of 2026-11-21 (same-event v1) and reaches the expected worklist', async () => {
+    const { A, B, census, key } = await loadDrill();
+    const identity = resolveIdentities([...A, ...B], census);
+    const cands = findCandidates(A, B);
+    const all = [...A, ...B];
+    const kid = (id: string) => {
+      const a = all.find((x) => x.id === id)!;
+      return (a.fileId === 'v1' ? key.rows.v1 : key.rows.v2).find((r) => r.sheetRow === a.row + 2)!.id;
+    };
+    // verdicts observed on the developer's laptop (Gemini Nano, prompt same-event v1)
+    const observed: Record<string, 'same' | 'separate'> = {
+      'v1-03~v2-n1': 'same',
+      'v1-03~v2-q1': 'separate',
+      'v1-03~v2-p03': 'same',
+      'v1-11~v2-p11': 'same',
+      'v1-16~v2-a16': 'same',
+      'v1-23~v2-p23': 'same',
+      'v1-01~v2-p01': 'same',
+      'v1-13~v2-p13': 'same',
+      'v1-18~v2-a18': 'separate',
+      'v1-09~v2-p09': 'same',
+      'v1-20~v2-a20': 'separate',
+    };
+    for (const c of cands) {
+      if (c.exact) continue;
+      const rel = observed[`${kid(c.a)}~${kid(c.b)}`];
+      if (rel) c.local = { relation: rel, changed: [], evidence: 'observed', source: 'on_device' };
+    }
+    const s = scoreDrill(key, all, propose({ earlier: A, later: B, candidates: cands, identity }), identity);
+    expect(s.sameActRecall).toBe('21/21');
+    expect(s.amendmentsFound).toBe('3/3');
+    expect(s.spuriousCorrections).toBe(0);
+    expect(s.falseMerges).toEqual([]);
+    expect(s.worklist.ready).toBe(27);
+  });
+
   it('baseline "exact copies only" shows what a naive merge loses', async () => {
     const { A, B, census, key } = await loadDrill();
     const identity = resolveIdentities([...A, ...B], census);
