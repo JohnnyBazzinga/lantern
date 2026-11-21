@@ -1,5 +1,5 @@
 import { errorProneAbbreviations } from './text';
-import type { Act, Disposition, IdentityIssue, Judgment, MatchCandidate, Relation } from './types';
+import type { Act, Disposition, IdentityIssue, MatchCandidate, Relation } from './types';
 
 /**
  * Turns candidates + judgments into a proposal for every row. Proposals are never final:
