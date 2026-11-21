@@ -11,6 +11,7 @@ import { getFirebaseApp } from '../firebase/app';
 import { assertLocalReady, hasPromptApi, LOCAL_CORE_OPTIONS, LocalModelUnavailableError } from './capability';
 import { recordLedger, type LedgerEntry, type LedgerMode } from './ledger';
 import { inferenceRequests, watchRequests } from './netwatch';
+import { loadConfig } from '../firebase/remoteConfig';
 
 /**
  * Three deliberate routes, one SDK:
@@ -87,28 +88,61 @@ function modelFor(task: PromptTask<unknown>, route: Route, cloudModel: string): 
       generationConfig: { responseMimeType: 'application/json', responseJsonSchema: task.schema },
     };
   }
-  const m = getGenerativeModel(ai(), params);
+  // the SDK default is 180 s; an overloaded model should fail fast and fall back instead
+  const m = getGenerativeModel(ai(), params, { timeout: CLOUD_TIMEOUT_MS });
   models.set(key, m);
   return m;
 }
 
 let localCalls = 0;
 
+const CLOUD_TIMEOUT_MS = 45_000;
+const RETRYABLE_STATUS = [429, 500, 502, 503, 504];
+const RETRYABLE_TEXT = /\[(?:429|500|502|503|504)\b|high demand|overloaded|quota|deadline|timed? ?out|abort/i;
+
+/** Overload, quota and timeout errors are worth one more try; a rejected answer or a refusal is not. */
+function retryable(e: unknown): boolean {
+  if ((e as { ledger?: unknown }).ledger) return false; // the model answered; its output was rejected
+  if (e instanceof LocalModelUnavailableError) return false;
+  const status = (e as { customErrorData?: { status?: number } }).customErrorData?.status;
+  if (status && RETRYABLE_STATUS.includes(status)) return true;
+  return RETRYABLE_TEXT.test(e instanceof Error ? e.message : String(e));
+}
+
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 function parseJsonLoose(text: string): unknown {
   const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '');
   return JSON.parse(trimmed);
 }
 
-export async function runTask<T>(
-  task: PromptTask<T>,
-  input: string,
-  opts: { route: Route; dataOrigin: DataOrigin; cloudModel: string; outgoingRefs?: string[] },
-): Promise<TaskResult<T>> {
+type TaskOpts = { route: Route; dataOrigin: DataOrigin; cloudModel: string; outgoingRefs?: string[] };
+
+export async function runTask<T>(task: PromptTask<T>, input: string, opts: TaskOpts): Promise<TaskResult<T>> {
+  if (opts.route === 'user-local') return attempt(task, input, opts, opts.cloudModel);
+  // Routes that can reach the cloud: one retry on the same model, then the Remote Config fallback model.
+  // Every failed attempt stays in the ledger, so the retries are visible.
+  const fallback = (await loadConfig()).cloudFallbackModel;
+  const plan = [opts.cloudModel, opts.cloudModel, ...(fallback && fallback !== opts.cloudModel ? [fallback] : [])];
+  let last: unknown;
+  for (const [i, model] of plan.entries()) {
+    if (i > 0) await pause(1500 * i);
+    try {
+      return await attempt(task, input, opts, model, i > 0 ? `after ${i} failed cloud attempt${i > 1 ? 's' : ''}` : undefined);
+    } catch (e) {
+      last = e;
+      if (!retryable(e) || !navigator.onLine) throw e;
+    }
+  }
+  throw last;
+}
+
+async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cloudModel: string, retryNote?: string): Promise<TaskResult<T>> {
   const base = {
     task: task.id,
     promptVersion: task.version,
     mode: LEDGER_MODE[opts.route],
-    model: opts.route === 'user-local' ? 'gemini-nano (Chrome)' : opts.cloudModel,
+    model: opts.route === 'user-local' ? 'gemini-nano (Chrome)' : cloudModel,
     dataOrigin: opts.dataOrigin,
     outgoingRefs: opts.route === 'user-local' ? [] : (opts.outgoingRefs ?? []),
   };
@@ -138,7 +172,7 @@ export async function runTask<T>(
   const watch = watchRequests();
   const t0 = performance.now();
   try {
-    const res = await modelFor(task as PromptTask<unknown>, opts.route, opts.cloudModel).generateContent(input);
+    const res = await modelFor(task as PromptTask<unknown>, opts.route, cloudModel).generateContent(input);
     const latencyMs = Math.round(performance.now() - t0);
     const seen = watch.stop();
     const raw = res.response.text();
@@ -156,7 +190,7 @@ export async function runTask<T>(
       note = `Output rejected: ${e instanceof Error ? e.message : String(e)}`;
       const ledger = recordLedger({
         ...base,
-        model: source === 'on_device' ? 'gemini-nano (Chrome)' : opts.cloudModel,
+        model: source === 'on_device' ? 'gemini-nano (Chrome)' : cloudModel,
         inferenceSource: source,
         latencyMs,
         coldStart,
@@ -169,13 +203,14 @@ export async function runTask<T>(
     }
     const ledger = recordLedger({
       ...base,
-      model: source === 'on_device' ? 'gemini-nano (Chrome)' : opts.cloudModel,
+      model: source === 'on_device' ? 'gemini-nano (Chrome)' : cloudModel,
       inferenceSource: source,
       latencyMs,
       coldStart,
       inferenceRequests: inferenceRequests(seen).length,
       googleRequests: seen,
       schemaValid,
+      note: retryNote,
     });
     return { value, raw, inferenceSource: source, latencyMs, ledger };
   } catch (e) {

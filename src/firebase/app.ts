@@ -33,11 +33,11 @@ export function getFirebaseApp(): FirebaseApp | null {
         // Prints a debug token in the console; register it in the Firebase console.
         (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
       }
-      // App Check tokens are only requested when a call actually goes to the cloud,
-      // so on-device inference keeps working with no network.
+      // No background refresh: AI Logic asks for a limited-use token per cloud call, so a token is
+      // only requested when a call actually goes to the cloud and on-device work needs no network.
       appCheck = initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey),
-        isTokenAutoRefreshEnabled: true,
+        isTokenAutoRefreshEnabled: false,
       });
     }
   }

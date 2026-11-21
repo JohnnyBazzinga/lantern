@@ -7,7 +7,7 @@ import { prepareLocalModel, runTask, type Route } from '../ai/models';
 import { mapColumnsInput, mapColumnsTask } from '../ai/prompts/v1/mapColumns';
 import { extractActInput, extractActTask } from '../ai/prompts/v1/extractAct';
 import { appCheckConfigured, appCheckDebugMode, firebaseConfigured, getAppCheckInstance, projectId } from '../firebase/app';
-import { loadConfig, type LanternConfig } from '../firebase/remoteConfig';
+import { loadConfig, RC_DEFAULTS, type LanternConfig } from '../firebase/remoteConfig';
 import { parseSpreadsheet } from '../core/parse';
 import { scoreExtraction, scoreMapping, type DevKey } from '../lab/spikeScore';
 import { profileColumns } from '../core/profile';
@@ -68,7 +68,7 @@ export default function Lab() {
     };
   }, [refreshEnv]);
 
-  const cloudModel = config?.cloudModel ?? 'gemini-3.8-flash';
+  const cloudModel = config?.cloudModel ?? RC_DEFAULTS.cloud_model;
 
   async function prepare() {
     setPrepareError(null);

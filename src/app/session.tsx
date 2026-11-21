@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { cloudAllowed } from '../ai/cloudPayload';
 import { checkLocalAvailability, type LocalAvailability } from '../ai/capability';
-import { loadConfig, type LanternConfig } from '../firebase/remoteConfig';
+import { loadConfig, RC_DEFAULTS, type LanternConfig } from '../firebase/remoteConfig';
 import { escalations, propose, type EscalationReason, type ReviewGroup } from '../core/reconcile';
 import type { CanonicalField } from '../core/fields';
 import type { Act, AuditEvent, Disposition, SourceFile } from '../core/types';
@@ -73,7 +73,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   const progress: Progress = useCallback((p) => setBusy(p), []);
-  const cloudModel = config?.cloudModel ?? 'gemini-3.8-flash';
+  const cloudModel = config?.cloudModel ?? RC_DEFAULTS.cloud_model;
 
   const audit = (s: SessionData, action: string, targetIds: string[], extra: Partial<AuditEvent> = {}): AuditEvent[] => [
     ...s.audit,

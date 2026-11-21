@@ -1,8 +1,13 @@
 {
   "parameters": {
     "cloud_model": {
-      "defaultValue": { "value": "gemini-3.8-flash" },
-      "description": "Cloud Gemini model used for the second opinion on disputed matches (bundled synthetic data only).",
+      "defaultValue": { "value": "gemini-3.5-flash-lite" },
+      "description": "Cloud Gemini model for the second opinion and for the drill's cloud fallback (bundled synthetic data only).",
+      "valueType": "STRING"
+    },
+    "cloud_fallback_model": {
+      "defaultValue": { "value": "gemini-3.6-flash" },
+      "description": "Tried once when cloud_model is overloaded or out of quota.",
       "valueType": "STRING"
     },
     "prompt_set_version": {

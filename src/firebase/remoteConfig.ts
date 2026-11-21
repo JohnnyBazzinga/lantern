@@ -14,7 +14,8 @@ import { getFirebaseApp } from './app';
  * result can cite the exact configuration that produced it.
  */
 export const RC_DEFAULTS = {
-  cloud_model: 'gemini-3.8-flash',
+  cloud_model: 'gemini-3.5-flash-lite',
+  cloud_fallback_model: 'gemini-3.6-flash',
   prompt_set_version: 'v1',
   cloud_second_opinion_enabled: true,
   local_batch_rows: 5,
@@ -22,6 +23,8 @@ export const RC_DEFAULTS = {
 
 export interface LanternConfig {
   cloudModel: string;
+  /** tried once when the cloud model is overloaded or out of quota */
+  cloudFallbackModel: string;
   promptSetVersion: string;
   cloudSecondOpinionEnabled: boolean;
   localBatchRows: number;
@@ -32,6 +35,7 @@ export interface LanternConfig {
 
 const fromDefaults = (detail: string): LanternConfig => ({
   cloudModel: RC_DEFAULTS.cloud_model,
+  cloudFallbackModel: RC_DEFAULTS.cloud_fallback_model,
   promptSetVersion: RC_DEFAULTS.prompt_set_version,
   cloudSecondOpinionEnabled: RC_DEFAULTS.cloud_second_opinion_enabled,
   localBatchRows: RC_DEFAULTS.local_batch_rows,
@@ -83,6 +87,7 @@ async function load(): Promise<LanternConfig> {
 
   return {
     cloudModel: getValue(rc, 'cloud_model').asString() || RC_DEFAULTS.cloud_model,
+    cloudFallbackModel: getValue(rc, 'cloud_fallback_model').asString() || RC_DEFAULTS.cloud_fallback_model,
     promptSetVersion: getValue(rc, 'prompt_set_version').asString() || RC_DEFAULTS.prompt_set_version,
     cloudSecondOpinionEnabled: getValue(rc, 'cloud_second_opinion_enabled').asBoolean(),
     localBatchRows: getValue(rc, 'local_batch_rows').asNumber() || RC_DEFAULTS.local_batch_rows,
