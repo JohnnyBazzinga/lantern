@@ -9,7 +9,7 @@ import type { PromptTask } from '../../models';
  */
 export const sameEventTask: PromptTask<Omit<Judgment, 'source' | 'ledgerId'>> = {
   id: 'same-event',
-  version: 'v2',
+  version: 'v3',
   system: `Two rows from a hospital ward's improvised downtime log describe care for the same patient.
 Question: do both rows describe the SAME clinical act, written twice (possibly in different words, abbreviations or with typos)?
 - "yes": same drug/observation/event, e.g. "PCM 1g IV" and "Paracetamol 1g IV given", or "O2 2L via nasal specs" and "O2 2L NP started".
@@ -18,7 +18,7 @@ Question: do both rows describe the SAME clinical act, written twice (possibly i
 If row B's comment says it corrects row A (e.g. "corrected", "corr.", "dose was", "not given", "logged by mistake"),
 it is the SAME act being corrected: answer "yes", even though a value or status differs.
 Ignore differences in wording, abbreviations, spelling, capitalisation and extra comments.
-"evidence" quotes the words that decided it.
+"evidence": the few words (at most 12) from the rows that decided it. Do not repeat yourself.
 Answer only with JSON that follows the schema.`,
   schema: {
     type: 'object',

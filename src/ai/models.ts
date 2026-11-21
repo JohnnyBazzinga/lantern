@@ -65,12 +65,20 @@ function ai(): AI {
 
 const models = new Map<string, GenerativeModel>();
 
+/**
+ * The SDK keeps our onDeviceParams object and hands promptOptions to Chrome's session.prompt() on
+ * every call, so setting `signal` here just before a call gives that call its own deadline.
+ */
+type DevicePromptOptions = { responseConstraint: object; signal?: AbortSignal };
+const devicePromptOptions = new WeakMap<GenerativeModel, DevicePromptOptions>();
+
 function modelFor(task: PromptTask<unknown>, route: Route, cloudModel: string): GenerativeModel {
   const key = `${task.id}@${task.version}|${route}|${cloudModel}`;
   const cached = models.get(key);
   if (cached) return cached;
 
   const params: HybridParams = { mode: MODE[route] };
+  const devicePrompt: DevicePromptOptions = { responseConstraint: task.schema };
   if (route !== 'cloud') {
     // On-device sessions ignore inCloudParams: the system prompt must travel in initialPrompts.
     params.onDeviceParams = {
@@ -78,7 +86,7 @@ function modelFor(task: PromptTask<unknown>, route: Route, cloudModel: string): 
         ...LOCAL_CORE_OPTIONS,
         initialPrompts: [{ role: 'system', content: [{ type: 'text', value: task.system }] }],
       },
-      promptOptions: { responseConstraint: task.schema },
+      promptOptions: devicePrompt,
     };
   }
   if (route !== 'user-local') {
@@ -90,6 +98,7 @@ function modelFor(task: PromptTask<unknown>, route: Route, cloudModel: string): 
   }
   // the SDK default is 180 s; an overloaded model should fail fast and fall back instead
   const m = getGenerativeModel(ai(), params, { timeout: CLOUD_TIMEOUT_MS });
+  if (route !== 'cloud') devicePromptOptions.set(m, devicePrompt);
   models.set(key, m);
   return m;
 }
@@ -97,8 +106,15 @@ function modelFor(task: PromptTask<unknown>, route: Route, cloudModel: string): 
 let localCalls = 0;
 
 const CLOUD_TIMEOUT_MS = 45_000;
+/**
+ * Gemini Nano normally answers a Lantern prompt in 2–10 s. Constrained decoding can occasionally loop
+ * inside a free-text field until the context window is full (observed: ~6 min, then truncated JSON),
+ * so an on-device call that runs past this is stopped and retried once on a fresh session.
+ */
+const ON_DEVICE_TIMEOUT_MS = 45_000;
+const DEVICE_STALL = 'On-device call stalled';
 const RETRYABLE_STATUS = [429, 500, 502, 503, 504];
-const RETRYABLE_TEXT = /\[(?:429|500|502|503|504)\b|high demand|overloaded|quota|deadline|timed? ?out|abort/i;
+const RETRYABLE_TEXT = /\[(?:429|500|502|503|504)\b|high demand|overloaded|exceeded your current quota|deadline|timeout has expired/i;
 
 /** Overload, quota and timeout errors are worth one more try; a rejected answer or a refusal is not. */
 function retryable(e: unknown): boolean {
@@ -119,32 +135,43 @@ function parseJsonLoose(text: string): unknown {
 type TaskOpts = { route: Route; dataOrigin: DataOrigin; cloudModel: string; outgoingRefs?: string[] };
 
 export async function runTask<T>(task: PromptTask<T>, input: string, opts: TaskOpts): Promise<TaskResult<T>> {
-  if (opts.route === 'user-local') return attempt(task, input, opts, opts.cloudModel);
-  // Routes that can reach the cloud: one retry on the same model, then the Remote Config fallback model.
+  // user-local: Gemini Nano only, one more try on a fresh session if the first call stalls or is cut off.
+  // Other routes: one retry on the same model, then the Remote Config fallback model.
   // Every failed attempt stays in the ledger, so the retries are visible.
-  const fallback = (await loadConfig()).cloudFallbackModel;
-  const plan = [opts.cloudModel, opts.cloudModel, ...(fallback && fallback !== opts.cloudModel ? [fallback] : [])];
+  const fallback = opts.route === 'user-local' ? null : (await loadConfig()).cloudFallbackModel;
+  const plan =
+    opts.route === 'user-local'
+      ? [opts.cloudModel, opts.cloudModel]
+      : [opts.cloudModel, opts.cloudModel, ...(fallback && fallback !== opts.cloudModel ? [fallback] : [])];
   let last: unknown;
   let failed = 0;
   for (let i = 0; i < plan.length; ) {
     const model = plan[i]!;
     if (failed) await pause(1500 * failed);
     try {
-      return await attempt(task, input, opts, model, failed ? `after ${failed} failed cloud attempt${failed > 1 ? 's' : ''}` : undefined);
+      return await attempt(task, input, opts, model, failed ? `after ${failed} failed attempt${failed > 1 ? 's' : ''}` : undefined);
     } catch (e) {
       last = e;
       failed++;
-      if (!retryable(e) || !navigator.onLine) throw e;
+      // a stalled call or a cut-off answer is sampling bad luck: worth one fresh try
+      const unlucky = deviceStalled(e) || (failed === 1 && Boolean((e as { ledger?: unknown }).ledger));
+      if (opts.route === 'user-local' ? !unlucky : !(unlucky || retryable(e))) throw e;
       i++;
-      // a model that timed out is overloaded: waiting on it again only doubles the delay
-      if (timedOut(e)) while (i < plan.length && plan[i] === model) i++;
+      // a cloud model that timed out is overloaded: waiting on it again only doubles the delay
+      if (cloudTimedOut(e)) while (i < plan.length && plan[i] === model) i++;
     }
   }
   throw last;
 }
 
-function timedOut(e: unknown): boolean {
-  return (e as { name?: string }).name === 'AbortError' || /timeout has expired|timed? ?out|deadline/i.test(e instanceof Error ? e.message : String(e));
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+function deviceStalled(e: unknown): boolean {
+  return errorText(e).includes(DEVICE_STALL);
+}
+function cloudTimedOut(e: unknown): boolean {
+  return !deviceStalled(e) && /timeout has expired|timed? ?out|deadline/i.test(errorText(e));
 }
 
 async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cloudModel: string, retryNote?: string): Promise<TaskResult<T>> {
@@ -181,8 +208,20 @@ async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cl
 
   const watch = watchRequests();
   const t0 = performance.now();
+  const model = modelFor(task as PromptTask<unknown>, opts.route, cloudModel);
+  const device = devicePromptOptions.get(model);
+  const deadline = new AbortController();
+  const timer = setTimeout(
+    () => deadline.abort(new DOMException(`${DEVICE_STALL} after ${ON_DEVICE_TIMEOUT_MS / 1000} s and was stopped`, 'TimeoutError')),
+    ON_DEVICE_TIMEOUT_MS,
+  );
+  if (device) device.signal = deadline.signal;
   try {
-    const res = await modelFor(task as PromptTask<unknown>, opts.route, cloudModel).generateContent(input);
+    const res = await model.generateContent(input).catch((e: unknown) => {
+      // Chrome rejects with the abort reason; keep the stall recognisable whatever it is wrapped in,
+      // but never relabel the SDK's own cloud timeout (a drill call that went to the cloud)
+      throw deadline.signal.aborted && !/timeout has expired/i.test(errorText(e)) ? (deadline.signal.reason as Error) : e;
+    });
     const latencyMs = Math.round(performance.now() - t0);
     const seen = watch.stop();
     const raw = res.response.text();
@@ -237,6 +276,9 @@ async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cl
       note: e instanceof Error ? e.message : String(e),
     });
     throw e;
+  } finally {
+    clearTimeout(timer);
+    if (device) device.signal = undefined;
   }
 }
 
