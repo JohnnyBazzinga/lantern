@@ -12,6 +12,24 @@ import { reconcileMapping, type FinalColumn, type ModelOpinion } from '../core/m
 import { profileColumns } from '../core/profile';
 import { escalations, propose, type EscalationReason, type Proposal } from '../core/reconcile';
 import type { Act, IdentityIssue, MatchCandidate, SourceFile } from '../core/types';
+import { msgs, tr } from '../i18n/lang';
+
+const STAGE = msgs(
+  {
+    columns: (file: string) => `Reading the columns of ${file}`,
+    column: (header: string) => `Double-checking column “${header}”`,
+    local: 'Comparing rows on this device',
+    drill: 'Comparing the two versions (fictional drill: on this device if it has the AI, otherwise in the cloud)',
+    cloud: 'Asking the cloud for a second opinion (synthetic drill data)',
+  },
+  {
+    columns: (file) => `A ler as colunas de ${file}`,
+    column: (header) => `A confirmar a coluna “${header}”`,
+    local: 'A comparar as linhas neste computador',
+    drill: 'A comparar as duas versões (simulacro fictício: neste computador, se tiver a IA; senão, na nuvem)',
+    cloud: 'A pedir uma segunda opinião à nuvem (dados fictícios do simulacro)',
+  },
+);
 
 export type Progress = (p: { stage: string; done: number; total: number }) => void;
 
@@ -32,7 +50,7 @@ export async function mapFile(file: SourceFile, cloudModel: string, onProgress?:
   const opts = { route, dataOrigin: dataOrigin([file]), cloudModel, outgoingRefs: [`${file.name}#headers+3 samples`] };
   const profiles = profileColumns(file.headers, file.rows);
   let opinions: ModelOpinion[] = [];
-  onProgress?.({ stage: `Reading the columns of ${file.name}`, done: 0, total: 1 });
+  onProgress?.({ stage: tr(STAGE).columns(file.name), done: 0, total: 1 });
   try {
     opinions = (await runTask(mapColumnsTask, mapColumnsInput(file.headers, file.rows), opts)).value;
   } catch {
@@ -42,7 +60,7 @@ export async function mapFile(file: SourceFile, cloudModel: string, onProgress?:
   const disputed = cols.filter((c) => c.needsReview);
   let i = 0;
   for (const c of disputed) {
-    onProgress?.({ stage: `Double-checking column “${c.header}”`, done: ++i, total: disputed.length });
+    onProgress?.({ stage: tr(STAGE).column(c.header), done: ++i, total: disputed.length });
     try {
       const r = await runTask(mapColumnTask, mapColumnInput(file.headers, profiles[c.index]!), opts);
       opinions = [...opinions.filter((o) => o.index !== c.index), { index: c.index, ...r.value }];
@@ -93,7 +111,7 @@ export async function reconcileFiles(o: ReconcileOptions): Promise<ReconcileResu
     let done = 0;
     for (const c of todo) {
       o.onProgress?.({
-        stage: route === 'user-local' ? 'Comparing rows on this device' : 'Comparing the two versions (fictional drill: on this device if it has the AI, otherwise in the cloud)',
+        stage: route === 'user-local' ? tr(STAGE).local : tr(STAGE).drill,
         done: done++,
         total: todo.length,
       });
@@ -157,7 +175,7 @@ export async function askSecondOpinion(o: {
     if (!c) continue;
     const a = byId.get(c.a)!;
     const b = byId.get(c.b)!;
-    o.onProgress?.({ stage: 'Asking the cloud for a second opinion (synthetic drill data)', done: done++, total: o.escalated.size });
+    o.onProgress?.({ stage: tr(STAGE).cloud, done: done++, total: o.escalated.size });
     const context = o.acts.filter((x) => x.patientKey && x.patientKey === a.patientKey);
     try {
       const r = await runTask(secondOpinionTask, secondOpinionInput(a, b, context), {

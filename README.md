@@ -95,11 +95,20 @@ To set up a Firebase project:
 
 On-device inference needs desktop Chrome with Gemini Nano ([hardware requirements](https://developer.chrome.com/docs/ai/get-started)). Gemini Nano supports English, Spanish, Japanese, German and French, so the drill and prompts are in English.
 
+### Languages
+
+The interface is in English and European Portuguese, switched with the EN/PT button on every screen (or `?lang=pt` in the address; the default follows the browser). The switch changes the words, never the decisions: a test runs the same sheet in both languages and compares every proposal (`tests/core/i18n.test.ts`).
+
+- **What is translated:** every screen, the questions for the nurse, the late-entry note to paste into the record ("Registo diferido, após indisponibilidade do sistema. Hora original: …"), the reasons behind each suggestion, and the CSV. In Portuguese the CSV uses semicolons and a UTF-8 byte-order mark, which is what Excel expects in Portugal.
+- **What is not:** rows are always shown exactly as typed. The drill's rows, the prompts and the model's quoted evidence stay in English, because Gemini Nano does not accept Portuguese. The Lab page for IT is English only.
+- **Portuguese sheets:** the deterministic rules read Portuguese ward shorthand as well as English (corrections such as "NÃO administrada", "por engano", "corrigido"; admissions and transfers; high-alert medicines such as morfina, enoxaparina, insulina; "segundo enf. KS"; falls). Columns such as Cama, Doente, N.º processo, Hora, Intervenção, Observações and Enf. are recognised without a model. CSV files are read as UTF-8 or as Windows-1252, the encoding of Excel's plain CSV in Portugal. Gemini Nano is not validated on Portuguese text, so on those sheets the rules carry the safety and the model only proposes.
+
 ## Project layout
 
 ```
 src/ai/          model routes, capability guard, cloud payload guard, network watcher, ledger, prompts/v1
-src/core/        deterministic pipeline: parse, profile, mapping, acts, identity, candidates, reconcile, worklist, score
+src/core/        deterministic pipeline: parse, profile, mapping, acts, identity, candidates, reconcile, worklist, score; i18n.ts (clinical wording, EN/PT)
+src/i18n/        interface language: state, EN/PT switch
 src/app/         pipeline orchestration, review items, session state (Dexie/IndexedDB)
 src/screens/     Start, Sources (columns), Review, Worklist, Result, Working overlay, Lab
 src/firebase/    Firebase init + App Check, Remote Config

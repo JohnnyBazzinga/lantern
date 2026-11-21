@@ -65,7 +65,7 @@ Severity is the highest any participant gave (0–4). "Found by" counts independ
 | F15 | "Logged after the first email" was false for an act timed before it | P2 P3 | 2 | **Fixed:** factual wording |
 | F16 | The second-opinion preview promised "no beds", but free text said "moved to bed 6" | P2 P4 | 2 | **Fixed:** the promise now describes what is sent |
 | F17 | Nothing said who made the app or where the data-protection statement is | P2 | 2 | **Fixed:** footer links; "not approved for real patients" |
-| F18 | An English-only interface for Portuguese staff | P1 P3 (+R2) | 2 | **Open:** see below |
+| F18 | An English-only interface for Portuguese staff | P1 P3 (+R2) | 2 | **Fixed** (UI, questions, late-entry notes, CSV in pt-PT; Portuguese lexicons for the rules). Gemini Nano on Portuguese text is still unvalidated |
 | F19 | No per-user authentication on a shared PC | P4 | — | **Out of scope:** deploy on individual managed accounts (documented) |
 | F20 | A per-patient strip of same-drug doses that night; a reminder to check the controlled-drug register | P3 | 2 | Open |
 | F21 | The Lab's S2 should say whether it saw a successful block or a successful local inference | P4 | 2 | Open |
@@ -97,11 +97,25 @@ validação posterior" after the 12 June 2026 outage.
 - **Storage.** Resolução do Conselho de Ministros 41/2018 asks not to keep personal data in the browser beyond the
   session. That is why imported reviews now expire and can be wiped, and why IT can turn persistence off.
 
+## Found while adding the Portuguese interface (2026-11-21)
+
+Running a small Portuguese sheet through the no-model path, as a test, found two defects that also affect English sheets:
+
+- **A correction written only in the comments column passed as an identical copy.** Exact copies were matched on patient,
+  time and act text, ignoring comments. "Enoxaparina 40 mg SC" with "NÃO administrada, doente recusou" in the later
+  copy's comments was therefore "identical in both files", and "keep one" would have entered the refused dose as given.
+  The drill did not catch it because its corrections are written in the act column. **Fixed:** the comments are part of
+  an exact copy; a comment-only correction becomes a correction, and its text travels with the act on the worklist.
+- **UTF-8 CSV files without a byte-order mark were read as Latin-1** ("João" became "JoÃ£o"), which broke column
+  recognition and census matching. **Fixed:** valid UTF-8 is read as UTF-8, anything else as Windows-1252 (Excel's plain
+  CSV in Portugal), and semicolon-separated files are read too. Both have tests (`tests/core/i18n.test.ts`,
+  `tests/core/parse.test.ts`).
+
 ## Still open, in order
 
 1. **Real users.** 3–5 clinical secretaries and nurses, with the same protocol and the same task logs.
-2. **A Portuguese (PT-PT) interface**, and validation of Gemini Nano on Portuguese sheets, which the Prompt API does not
-   officially support. Until then, the AI only proposes and the rules carry the safety.
+2. **Gemini Nano on Portuguese sheets**, which the Prompt API does not officially support. The interface and the rules are
+   in Portuguese; until Nano is validated on Portuguese text, it only proposes and the rules carry the safety.
 3. A pre-flight page for IT (model availability, disk, policies), extending the Lab.
 4. A draft DPIA and a clinical-safety hazard log, for a hospital pilot.
 5. F20 and F21.

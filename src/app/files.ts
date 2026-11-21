@@ -1,6 +1,7 @@
 import { registerBundledFixture } from '../ai/cloudPayload';
 import { parseSpreadsheet } from '../core/parse';
 import type { SourceFile } from '../core/types';
+import { getLang } from '../i18n/lang';
 
 export const DRILL_FILES = [
   { id: 'census', name: 'ward-census.csv', role: 'census' as const, label: 'census' },
@@ -13,7 +14,7 @@ export async function loadDrillFiles(): Promise<SourceFile[]> {
   return Promise.all(
     DRILL_FILES.map(async (f) => {
       const res = await fetch(`/fixtures/drill/${encodeURIComponent(f.name)}`);
-      if (!res.ok) throw new Error(`Could not load ${f.name} (${res.status})`);
+      if (!res.ok) throw new Error(getLang() === 'pt' ? `Não foi possível abrir ${f.name} (${res.status})` : `Could not load ${f.name} (${res.status})`);
       const g = await parseSpreadsheet(f.name, await res.arrayBuffer());
       registerBundledFixture(g.hash);
       return { id: f.id, name: f.name, hash: g.hash, versionLabel: f.label, role: f.role, origin: 'bundled-fixture' as const, headers: g.headers, rows: g.rows, mapping: [] };

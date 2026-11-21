@@ -1,4 +1,6 @@
-import { categoryOf, clinicalPartBy, enteredBy, followUp, isHighAlert, relayedFrom, type Category } from './clinical';
+import { categoryLabel, categoryOf, clinicalPartBy, enteredBy, followUp, isHighAlert, relayedFrom, type Category } from './clinical';
+import { ct, shortDate, type FieldName } from './i18n';
+import { rowRef } from './reconcile';
 import { nightMinutes } from './text';
 import type { Act, Disposition } from './types';
 
@@ -61,7 +63,7 @@ export interface Worklist {
   undecided: string[];
 }
 
-const src = (a: Act) => `${a.versionLabel} row ${a.row + 2}`;
+const src = (a: Act) => rowRef(a);
 
 /** The night the outage started: by default 12 hours before the review began (a morning review is about last night). */
 export function defaultNightOf(startedAt: number | string): string {
@@ -82,11 +84,8 @@ export function dateFor(nightOf: string, time: string): { date: string; order: n
   return { date: isoDate(day), order: m };
 }
 
-export function formatDate(iso: string): string {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y!, m! - 1, d!).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-}
+/** "Sun 22 Nov" / "dom., 22/11", in the interface language. */
+export const formatDate = shortDate;
 
 export function buildWorklist(acts: Act[], decisions: Map<string, Disposition | undefined>, opts: { nightOf?: string } = {}): Worklist {
   const nightOf = opts.nightOf ?? defaultNightOf(Date.now());
@@ -164,9 +163,7 @@ export function buildWorklist(acts: Act[], decisions: Map<string, Disposition | 
       ...(d.kind === 'approved' && d.note && { note: d.note }),
       clinicalPartBy: clinicalPartBy(view),
       followUp: followUp(view),
-      lateEntry: `Late entry after system downtime. Original time ${time ? `${formatDate(date)} ${time}` : 'not recorded'}${
-        a.documentedBy ? `, documented by ${a.documentedBy}` : ''
-      } on the downtime log (${source}).${corrected.length ? ' Corrected in the later copy.' : ''}`,
+      lateEntry: ct().lateEntry(time ? `${formatDate(date)} ${time}` : '', a.documentedBy, source, corrected.length > 0),
     });
   }
   wl.ready.sort(
@@ -180,46 +177,39 @@ export function buildWorklist(acts: Act[], decisions: Map<string, Disposition | 
   return wl;
 }
 
+/** A correction's field name for people ("time" / "hora"); other values are shown as stored. */
+export const fieldName = (f: string) => ct().field[f as FieldName] ?? f;
+
+/**
+ * The worklist as CSV, in the interface language. Portuguese files use the semicolon, which is what Excel
+ * expects where the comma is the decimal mark; a byte-order mark makes Excel read the accents as UTF-8.
+ */
 export function worklistCsv(wl: Worklist, opts: { drill?: boolean } = {}): string {
-  const esc = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-  const head = [
-    'Status',
-    'To be entered by',
-    'Category',
-    'Date',
-    'Time',
-    'Hospital number',
-    'Patient',
-    'Bed',
-    'Act',
-    'Notes',
-    'Documented by',
-    'Correction',
-    'Late-entry note',
-    'Source rows',
-    'Question',
-  ];
-  const status = (r: WorklistItem) => (r.confirmBy ? `Ready, ${r.confirmBy} to confirm the correction` : 'Ready for re-entry');
+  const t = ct();
+  const sep = t.csv.separator;
+  const esc = (s: string) => (s.includes(sep) || /["\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  const head = t.csv.head;
+  const status = (r: WorklistItem) => (r.confirmBy ? t.csv.readyConfirm(r.confirmBy) : t.csv.ready);
   const rows = [
     ...wl.ready.map((r) => [
       status(r),
       r.enteredBy.who,
-      r.category,
+      categoryLabel(r.category),
       r.date,
       r.time,
       r.patientId,
       r.patientName,
       r.bed,
       r.act,
-      [r.notes, r.note, r.clinicalPartBy && `clinical part entered by ${r.clinicalPartBy}`, r.followUp].filter(Boolean).join(' | '),
+      [r.notes, r.note, r.clinicalPartBy && t.csv.clinicalPart(r.clinicalPartBy), r.followUp].filter(Boolean).join(' | '),
       r.documentedBy,
-      r.corrected.map((c) => `${c.field}: ${c.from} → ${c.to} (${c.basis})`).join('; '),
+      r.corrected.map((c) => `${fieldName(c.field)}: ${c.from} → ${c.to} (${c.basis})`).join('; '),
       r.lateEntry,
       r.source,
       '',
     ]),
     ...wl.questions.map((q) => [
-      `Question for ${q.owner}`,
+      t.csv.question(q.owner),
       q.owner,
       '',
       q.date,
@@ -236,8 +226,8 @@ export function worklistCsv(wl: Worklist, opts: { drill?: boolean } = {}): strin
       q.question,
     ]),
   ];
-  const lines = [head, ...rows].map((r) => r.map(esc).join(','));
-  if (opts.drill) lines.unshift('# Lantern drill: fictional patients, not a real record');
-  if (wl.undecided.length) lines.unshift(`# INCOMPLETE: ${wl.undecided.length} rows still have no decision`);
-  return lines.join('\n') + '\n';
+  const lines = [head, ...rows].map((r) => r.map(esc).join(sep));
+  if (opts.drill) lines.unshift(t.csv.drill);
+  if (wl.undecided.length) lines.unshift(t.csv.incomplete(wl.undecided.length));
+  return '\uFEFF' + lines.join('\n') + '\n';
 }

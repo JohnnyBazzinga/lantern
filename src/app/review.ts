@@ -1,3 +1,4 @@
+import { msgs, tr } from '../i18n/lang';
 import type { Proposal, ReviewGroup } from '../core/reconcile';
 import { GROUP_ORDER } from '../core/reconcile';
 import type { Act, Disposition, IdentityIssue } from '../core/types';
@@ -21,15 +22,29 @@ export interface ReviewItem {
   undecidedByModel?: boolean;
 }
 
-export const GROUP_COPY: Record<ReviewGroup, { title: string; hint: string }> = {
-  identity: { title: 'Check the patient', hint: 'Name or hospital number does not match the census' },
-  open: { title: 'Ask the nurse', hint: 'Only the person who wrote it can answer' },
-  changed: { title: 'Corrected later', hint: 'The newer file documents a correction' },
-  'likely-same': { title: 'Typed twice', hint: 'Same act, worded differently' },
-  'only-earlier': { title: 'Missing from the newer file', hint: 'In the earlier copy, not in the later one' },
-  'only-later': { title: 'Only in the newer file', hint: 'Not in the earlier copy' },
-  copies: { title: 'Identical in both files', hint: 'Nothing to compare' },
-};
+const GROUP_COPY = msgs<Record<ReviewGroup, { title: string; hint: string }>>(
+  {
+    identity: { title: 'Check the patient', hint: 'Name or hospital number does not match the census' },
+    open: { title: 'Ask the nurse', hint: 'Only the person who wrote it can answer' },
+    changed: { title: 'Corrected later', hint: 'The newer file documents a correction' },
+    'likely-same': { title: 'Possibly typed twice', hint: 'Check whether both rows are the same act' },
+    'only-earlier': { title: 'Missing from the newer file', hint: 'In the earlier copy, not in the later one' },
+    'only-later': { title: 'Only in the newer file', hint: 'Not in the earlier copy' },
+    copies: { title: 'Identical in both files', hint: 'Nothing to compare' },
+  },
+  {
+    identity: { title: 'Confirmar a identidade', hint: 'O nome ou o n.º de processo não coincide com a lista de doentes' },
+    open: { title: 'Perguntar à enfermagem', hint: 'Só quem escreveu pode responder' },
+    changed: { title: 'Corrigido depois', hint: 'O ficheiro mais recente documenta uma correção' },
+    'likely-same': { title: 'Talvez escrito duas vezes', hint: 'Confirme se as duas linhas são o mesmo ato' },
+    'only-earlier': { title: 'Falta no ficheiro mais recente', hint: 'Está na cópia anterior, não na posterior' },
+    'only-later': { title: 'Só no ficheiro mais recente', hint: 'Não está na cópia anterior' },
+    copies: { title: 'Iguais nos dois ficheiros', hint: 'Nada a comparar' },
+  },
+);
+
+/** Title and hint of a review group, in the current interface language. */
+export const groupCopy = (g: ReviewGroup) => tr(GROUP_COPY)[g];
 
 export function buildItems(acts: Act[], proposals: Proposal[], identity: IdentityIssue[]): ReviewItem[] {
   const prop = new Map(proposals.map((p) => [p.actId, p]));

@@ -62,7 +62,7 @@ On-device sessions ignore `inCloudParams`, so each task's system prompt travels 
 | Undocumented "correction" | The verdict is `amendment`, with no correction note | `same` (a re-typed copy) |
 | Correction under "same" | The verdict is `same`, and the later row has a correction note | `amendment` |
 
-A correction note is a word such as "corrected", "corr.", "amended", "error", "mistake", "wrong", "not given", "was not", "instead of", "should be", "actually" or "by mistake". Error-prone abbreviations (an ISMP subset: `MS`, `MSO4`, `MgSO4`, `U` for units, `IU`, `QD`/`QOD`, trailing zero, naked decimal) always become open questions for the documenting clinician, whatever any model says.
+A correction note is a word such as "corrected", "corr.", "amended", "error", "mistake", "wrong", "not given", "was not", "instead of", "should be", "actually" or "by mistake", or its Portuguese equivalent ("corrigido", "correção", "por engano", "não administrada", "em vez de", "deve ler-se", "afinal", "anulado"). Exact copies must match in patient, time, act **and comments**, so a correction written only in the comments column is never taken for a copy. Error-prone abbreviations (an ISMP subset: `MS`, `MSO4`, `MgSO4`, `U` for units, `IU`, `QD`/`QOD`, trailing zero, naked decimal) always become open questions for the documenting clinician, whatever any model says.
 
 ## Retries and timeouts (`src/ai/models.ts`)
 
@@ -83,3 +83,11 @@ When a pair still gets no verdict, nothing is lost. It is escalated as `local-un
 - **App Check:** `ReCaptchaEnterpriseProvider` with `isTokenAutoRefreshEnabled: false` and `useLimitedUseAppCheckTokens: true`. A token is fetched per cloud call, never for on-device work.
 - **Remote Config:** fetched once per page load, with a 10-minute minimum interval and a 4 s timeout. The last activated values come from IndexedDB, and the in-code defaults apply when nothing has been fetched yet.
 - **Network watcher** (`src/ai/netwatch.ts`): a `fetch` wrapper plus a Resource Timing observer. It records requests to Google endpoints during each call, so the ledger reports the measured number of inference requests rather than a claim.
+
+## Languages (`src/i18n/`, `src/core/i18n.ts`)
+
+- The interface language is plain module state (`getLang()`), chosen by `?lang=`, then the saved choice, then the browser language. Screens subscribe with `useT()`; core modules read the language when they write a sentence.
+- Every message set is a pair `msgs(en, pt)`. The Portuguese set must have the same shape as the English one, so a missing translation is a type error.
+- Clinical wording (questions for the nurse, late-entry notes, rule reasons, identity problems, column readings, the CSV) lives in one file, `src/core/i18n.ts`, so the same term is used on screen, on paper and in the CSV.
+- Text derived from data is rebuilt in the current language rather than stored: proposals are recomputed from candidates and identity checks, identity problems keep their facts (`IdentityIssue.facts`), and column readings keep their reason as data (`FinalColumn.why`). Decisions, questions already asked and the audit trail keep the words used at the time, as a record should.
+- Rows, prompts and model evidence are never translated.

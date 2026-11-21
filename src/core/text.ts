@@ -1,3 +1,5 @@
+import { getLang, type Lang } from '../i18n/lang';
+
 /** Small, dependency-free text helpers used by the deterministic layer. */
 
 export function fold(s: string): string {
@@ -56,19 +58,21 @@ export function nightMinutes(raw: string): number | null {
 
 /**
  * Error-prone abbreviations (subset of the ISMP list) that must never be resolved by a model.
- * Lantern turns them into an open question for the documenting clinician.
+ * Lantern turns them into an open question for the documenting clinician. Decimals are read with a
+ * point or a comma, as Portuguese sheets write them ("1,0 mg", ",5 mg").
  */
-const ERROR_PRONE: { rx: RegExp; label: string }[] = [
-  { rx: /\bMS\b/, label: "'MS' (morphine sulfate or magnesium sulfate)" },
-  { rx: /\bMSO4\b/i, label: "'MSO4' (morphine or magnesium)" },
-  { rx: /\bMgSO4\b/, label: "'MgSO4' (confused with morphine)" },
-  { rx: /\b\d+\s*U\b/, label: "'U' for units (misread as 0 or 4)" },
-  { rx: /\bIU\b/, label: "'IU' (misread as IV or 10)" },
-  { rx: /\bQ\.?O?D\b/i, label: "'QD'/'QOD' (daily vs every other day)" },
-  { rx: /\b\d+\.0\s*(?:mg|g|ml|mcg)\b/i, label: 'trailing zero (1.0 mg misread as 10 mg)' },
-  { rx: /(?:^|\s)\.\d+\s*(?:mg|g|ml|mcg)\b/i, label: 'naked decimal (.5 mg misread as 5 mg)' },
+const ERROR_PRONE: { rx: RegExp; en: string; pt: string }[] = [
+  { rx: /\bMS\b/, en: "'MS' (morphine sulfate or magnesium sulfate)", pt: "'MS' (sulfato de morfina ou sulfato de magnésio)" },
+  { rx: /\bMSO4\b/i, en: "'MSO4' (morphine sulfate and magnesium sulfate are confused)", pt: "'MSO4' (risco de confusão entre sulfato de morfina e sulfato de magnésio)" },
+  { rx: /\bMgSO4\b/, en: "'MgSO4' (confused with morphine sulfate)", pt: "'MgSO4' (risco de confusão com sulfato de morfina)" },
+  { rx: /\b\d+\s*U\b/, en: "'U' for units (misread as 0 or 4)", pt: "'U' para unidades (lido como 0 ou 4)" },
+  { rx: /\bIU\b/, en: "'IU' (misread as IV or 10)", pt: "'IU' (lido como IV ou 10)" },
+  { rx: /\bUI\b/, en: "'UI' (international units, misread as IV or 10)", pt: "'UI' (unidades internacionais, lido como IV ou 10)" },
+  { rx: /\bQ\.?O?D\b/i, en: "'QD'/'QOD' (daily vs every other day)", pt: "'QD'/'QOD' (diário ou em dias alternados)" },
+  { rx: /\b\d+[.,]0\s*(?:mg|g|ml|mcg)\b/i, en: 'trailing zero (1.0 mg misread as 10 mg)', pt: 'zero à direita (1,0 mg lido como 10 mg)' },
+  { rx: /(?:^|\s)[.,]\d+\s*(?:mg|g|ml|mcg)\b/i, en: 'naked decimal (.5 mg misread as 5 mg)', pt: 'decimal sem zero (,5 mg lido como 5 mg)' },
 ];
 
-export function errorProneAbbreviations(s: string): string[] {
-  return ERROR_PRONE.filter((e) => e.rx.test(s)).map((e) => e.label);
+export function errorProneAbbreviations(s: string, lang: Lang = getLang()): string[] {
+  return ERROR_PRONE.filter((e) => e.rx.test(s)).map((e) => e[lang]);
 }

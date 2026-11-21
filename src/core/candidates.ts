@@ -8,7 +8,12 @@ import type { Act, MatchCandidate } from './types';
  * never on bed number alone.
  */
 
-const exactKey = (a: Act) => [a.patientKey, normText(a.eventTime), normText(a.actText)].join('|');
+/**
+ * An exact copy has the same patient, time, act AND comments. A correction written only in the
+ * comments column ("Enoxaparin 40mg SC" + "NOT given, pt refused") must never pass as a copy, or
+ * "keep one" would enter a refused dose as given.
+ */
+const exactKey = (a: Act) => [a.patientKey, normText(a.eventTime), normText(a.actText), normText(a.notes)].join('|');
 
 export function findCandidates(A: Act[], B: Act[], opts: { maxPerAct?: number; minSimilarity?: number } = {}): MatchCandidate[] {
   const maxPerAct = opts.maxPerAct ?? 2;

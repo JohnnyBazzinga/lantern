@@ -1,6 +1,25 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Cloud, Cpu, Scale } from 'lucide-react';
 import { normText } from '../core/text';
+import { msgs } from '../i18n/lang';
+import { useT } from '../i18n/react';
+
+const M = msgs(
+  {
+    device: 'On this device',
+    cloud: 'Cloud',
+    rule: 'Rule',
+    blank: '(blank)',
+    decided: (done: number, total: number) => `${done} of ${total} rows decided`,
+  },
+  {
+    device: 'Neste computador',
+    cloud: 'Nuvem',
+    rule: 'Regra',
+    blank: '(em branco)',
+    decided: (done, total) => `${done} de ${total} linhas decididas`,
+  },
+);
 
 export function Button({
   tone = 'primary',
@@ -23,28 +42,30 @@ export function Button({
 
 /** Where an opinion came from. Every model output in Lantern carries one of these. */
 export function RanOn({ source, model }: { source: 'on_device' | 'in_cloud' | 'rule'; model?: string }) {
+  const t = useT(M);
   if (source === 'on_device')
     return (
       <span className="inline-flex items-center gap-1 rounded-sm bg-scrub-wash px-1.5 py-0.5 text-[13px] font-semibold text-scrub">
-        <Cpu size={13} aria-hidden /> On this device
+        <Cpu size={13} aria-hidden /> {t.device}
       </span>
     );
   if (source === 'in_cloud')
     return (
       <span className="inline-flex items-center gap-1 rounded-sm bg-ballpoint-wash px-1.5 py-0.5 text-[13px] font-semibold text-ballpoint" title={model}>
-        <Cloud size={13} aria-hidden /> Cloud
+        <Cloud size={13} aria-hidden /> {t.cloud}
       </span>
     );
   return (
     <span className="inline-flex items-center gap-1 rounded-sm bg-paper px-1.5 py-0.5 text-[13px] font-semibold text-ink-soft">
-      <Scale size={13} aria-hidden /> Rule
+      <Scale size={13} aria-hidden /> {t.rule}
     </span>
   );
 }
 
 /** Renders text with the words that do not occur in `other` marked by the highlighter. */
 export function Diff({ text, other }: { text: string; other?: string }) {
-  if (!other || !text) return <>{text || <span className="text-ink-faint">(blank)</span>}</>;
+  const t = useT(M);
+  if (!other || !text) return <>{text || <span className="text-ink-faint">{t.blank}</span>}</>;
   const theirs = new Set(normText(other).split(' '));
   const parts = text.split(/(\s+)/);
   return (
@@ -74,15 +95,14 @@ export function LanternMark({ size = 22 }: { size?: number }) {
 }
 
 export function Meter({ done, total }: { done: number; total: number }) {
+  const t = useT(M);
   const pct = total ? Math.round((100 * done) / total) : 0;
   return (
-    <div className="flex items-center gap-2" aria-label={`${done} of ${total} rows decided`}>
+    <div className="flex items-center gap-2" aria-label={t.decided(done, total)}>
       <div className="h-1.5 w-28 overflow-hidden rounded-full bg-rule">
         <div className="h-full bg-ink transition-[width] duration-300" style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-sm tabular-nums text-ink-soft">
-        {done} of {total} rows decided
-      </span>
+      <span className="text-sm tabular-nums text-ink-soft">{t.decided(done, total)}</span>
     </div>
   );
 }

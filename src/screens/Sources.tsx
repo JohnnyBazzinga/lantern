@@ -1,27 +1,69 @@
 import { CANONICAL_FIELDS, type CanonicalField } from '../core/fields';
+import { ct } from '../core/i18n';
+import { columnReason } from '../core/mapping';
 import type { SourceFile } from '../core/types';
-import { useSession } from '../app/session';
+import { sessionTitle, useSession } from '../app/session';
+import { msgs, tr } from '../i18n/lang';
+import { LangToggle, useT } from '../i18n/react';
 import { Button, LanternMark, Notice, RanOn } from '../ui/kit';
 
-export const FIELD_LABEL: Record<CanonicalField, string> = {
-  bed: 'Bed',
-  patient_name: 'Patient name',
-  patient_id: 'Hospital number',
-  patient: 'Name and hospital number',
-  event_time: 'Time',
-  act: 'What was done',
-  notes: 'Comments',
-  documented_by: 'Who wrote it',
-  ignore: 'Not needed',
-};
+const M = msgs(
+  {
+    drillFiles: { census: 'Census at 21:00', v1: 'Version 1, emailed 03:10', v2: 'Version 2, reply-all 07:40' } as Record<string, string>,
+    importFiles: { census: 'Census', v1: 'Earlier version', v2: 'Later version' } as Record<string, string>,
+    startOver: 'Start over',
+    title: 'Check what each column means',
+    lede: 'Every ward invents its own columns during an outage. Lantern read the headers and the values, and proposes what each column holds.',
+    flagged: (n: number) => ` ${n} ${n === 1 ? 'column needs' : 'columns need'} your eye before comparing.`,
+    clean: ' Nothing looked doubtful, but have a glance before comparing.',
+    rows: (name: string, n: number) => `${name}, ${n} rows`,
+    colFile: 'Column in the file',
+    colValues: 'First values',
+    colReads: 'Lantern reads it as',
+    noHeader: '(no header)',
+    empty: '(empty)',
+    meaning: (h: string) => `Meaning of column ${h}`,
+    confirm: 'Please confirm',
+    agree: 'Header and values agree',
+    fromHeader: 'Read from the header',
+    fromValues: 'Read from the values',
+    compare: 'Compare the two versions',
+    runs: 'Runs',
+    drillCloud: 'where available; this browser will use the cloud for the synthetic drill',
+  },
+  {
+    drillFiles: { census: 'Lista de doentes às 21:00', v1: 'Versão 1, enviada por email às 03:10', v2: 'Versão 2, resposta a todos às 07:40' },
+    importFiles: { census: 'Lista de doentes', v1: 'Versão anterior', v2: 'Versão posterior' },
+    startOver: 'Recomeçar',
+    title: 'Confirme o que quer dizer cada coluna',
+    lede: 'Cada enfermaria inventa as suas colunas durante uma falha. O Lantern leu os cabeçalhos e os valores, e propõe o que contém cada coluna.',
+    flagged: (n) => ` ${n} ${n === 1 ? 'coluna precisa' : 'colunas precisam'} da sua atenção antes de comparar.`,
+    clean: ' Nada pareceu duvidoso, mas dê uma vista de olhos antes de comparar.',
+    rows: (name, n) => `${name}, ${n} linhas`,
+    colFile: 'Coluna no ficheiro',
+    colValues: 'Primeiros valores',
+    colReads: 'O Lantern lê como',
+    noHeader: '(sem cabeçalho)',
+    empty: '(vazia)',
+    meaning: (h) => `Significado da coluna ${h}`,
+    confirm: 'Confirme, por favor',
+    agree: 'O cabeçalho e os valores coincidem',
+    fromHeader: 'Lido do cabeçalho',
+    fromValues: 'Lido dos valores',
+    compare: 'Comparar as duas versões',
+    runs: 'Corre',
+    drillCloud: 'quando disponível; este navegador vai usar a nuvem para o simulacro fictício',
+  },
+);
 
+/** The name people know a file by ("Version 1, emailed 03:10"), in the current interface language. */
 export function versionName(f: SourceFile, kind: 'drill' | 'import'): string {
-  if (kind === 'drill') return { census: 'Census at 21:00', v1: 'Version 1, emailed 03:10', v2: 'Version 2, reply-all 07:40' }[f.id] ?? f.name;
-  return { census: 'Census', v1: 'Earlier version', v2: 'Later version' }[f.id] ?? f.name;
+  return (kind === 'drill' ? tr(M).drillFiles : tr(M).importFiles)[f.id] ?? f.name;
 }
 
 export default function Sources() {
   const s = useSession();
+  const t = useT(M);
   const session = s.session!;
   const flagged = session.files.flatMap((f) => f.mapping.filter((c) => c.needsReview)).length;
 
@@ -31,19 +73,20 @@ export default function Sources() {
         <div className="flex items-center gap-2">
           <LanternMark />
           <span className="text-lg font-semibold">Lantern</span>
-          <span className="ml-3 text-ink-soft">{session.title}</span>
+          <span className="ml-3 text-ink-soft">{sessionTitle(session.kind)}</span>
         </div>
-        <Button tone="quiet" onClick={() => void s.reset()}>
-          Start over
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button tone="quiet" onClick={() => void s.reset()}>
+            {t.startOver}
+          </Button>
+          <LangToggle />
+        </div>
       </header>
 
-      <h1 className="text-3xl font-semibold tracking-[-0.01em]">Check what each column means</h1>
+      <h1 className="text-3xl font-semibold tracking-[-0.01em]">{t.title}</h1>
       <p className="mt-3 max-w-[64ch] text-lg text-ink-soft">
-        Every ward invents its own columns during an outage. Lantern read the headers and the values, and proposes what each column holds.
-        {flagged
-          ? ` ${flagged} ${flagged === 1 ? 'column needs' : 'columns need'} your eye before comparing.`
-          : ' Nothing looked doubtful, but have a glance before comparing.'}
+        {t.lede}
+        {flagged ? t.flagged(flagged) : t.clean}
       </p>
 
       <div className="mt-10 space-y-12">
@@ -53,23 +96,21 @@ export default function Sources() {
               <h2 id={`f-${f.id}`} className="text-xl font-semibold">
                 {versionName(f, session.kind)}
               </h2>
-              <span className="text-sm text-ink-faint">
-                {f.name}, {f.rows.length} rows
-              </span>
+              <span className="text-sm text-ink-faint">{t.rows(f.name, f.rows.length)}</span>
             </div>
             <div className="overflow-x-auto rounded-[3px] border border-rule-strong bg-sheet">
               <table className="w-full min-w-[640px] border-collapse text-left">
                 <thead>
                   <tr className="border-b border-rule-strong bg-paper text-sm text-ink-soft">
-                    <th className="w-[22%] px-3 py-2 font-normal">Column in the file</th>
-                    <th className="px-3 py-2 font-normal">First values</th>
-                    <th className="w-[24%] px-3 py-2 font-normal">Lantern reads it as</th>
+                    <th className="w-[22%] px-3 py-2 font-normal">{t.colFile}</th>
+                    <th className="px-3 py-2 font-normal">{t.colValues}</th>
+                    <th className="w-[24%] px-3 py-2 font-normal">{t.colReads}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {f.mapping.map((c) => (
                     <tr key={c.index} className={`border-b border-rule last:border-b-0 ${c.needsReview ? 'bg-pen-wash/60' : ''}`}>
-                      <td className="px-3 py-2.5 align-top font-mono text-[15px]">{c.header || <span className="text-ink-faint">(no header)</span>}</td>
+                      <td className="px-3 py-2.5 align-top font-mono text-[15px]">{c.header || <span className="text-ink-faint">{t.noHeader}</span>}</td>
                       <td className="px-3 py-2 align-top">
                         <div className="flex flex-wrap gap-1.5">
                           {f.rows
@@ -81,24 +122,34 @@ export default function Sources() {
                                 {v}
                               </span>
                             ))}
-                          {!f.rows.some((r) => r[c.index]) && <span className="text-ink-faint">(empty)</span>}
+                          {!f.rows.some((r) => r[c.index]) && <span className="text-ink-faint">{t.empty}</span>}
                         </div>
                       </td>
                       <td className="px-3 py-2 align-top">
                         <select
-                          aria-label={`Meaning of column ${c.header}`}
+                          aria-label={t.meaning(c.header)}
                           value={c.field}
                           onChange={(e) => s.setField(f.id, c.index, e.target.value as CanonicalField)}
                           className="w-full rounded-md border border-rule-strong bg-sheet px-2 py-1.5 text-[15px]"
                         >
                           {CANONICAL_FIELDS.map((k) => (
                             <option key={k} value={k}>
-                              {FIELD_LABEL[k]}
+                              {ct().fieldLabel[k]}
                             </option>
                           ))}
                         </select>
                         <p className="mt-1 text-[13px] text-ink-faint">
-                          {c.needsReview ? <span className="text-pen">{c.reason ?? 'Please confirm'}</span> : c.basis === 'agree' ? 'Header and values agree' : c.basis === 'rule' && c.reason ? c.reason : c.model ? 'Read from the header' : 'Read from the values'}
+                          {c.needsReview ? (
+                            <span className="text-pen">{columnReason(c) ?? t.confirm}</span>
+                          ) : c.basis === 'agree' ? (
+                            t.agree
+                          ) : c.basis === 'rule' && columnReason(c) ? (
+                            columnReason(c)
+                          ) : c.model ? (
+                            t.fromHeader
+                          ) : (
+                            t.fromValues
+                          )}
                         </p>
                       </td>
                     </tr>
@@ -112,11 +163,10 @@ export default function Sources() {
 
       <div className="mt-10 flex flex-wrap items-center gap-4">
         <Button onClick={() => void s.compare()} disabled={!!s.busy} className="px-5 py-3 text-base">
-          Compare the two versions
+          {t.compare}
         </Button>
         <span className="flex items-center gap-2 text-sm text-ink-soft">
-          Runs <RanOn source="on_device" />{' '}
-          {session.kind === 'drill' && s.local !== 'available' ? 'where available; this browser will use the cloud for the synthetic drill' : ''}
+          {t.runs} <RanOn source="on_device" /> {session.kind === 'drill' && s.local !== 'available' ? t.drillCloud : ''}
         </span>
       </div>
       {s.error && (

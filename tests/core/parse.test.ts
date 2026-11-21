@@ -27,6 +27,17 @@ describe('parseSpreadsheet', () => {
     expect(a.hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it('reads Portuguese CSV files as Excel saves them: Windows-1252 or UTF-8, comma or semicolon', async () => {
+    const text = 'Cama;Doente;Hora;Intervenção\n5;João Pereira;02:40;Enoxaparina 40 mg SC\n';
+    // Excel's plain "CSV (separado por vírgulas)" in Portugal: Windows-1252 bytes, semicolons
+    const cp1252 = Uint8Array.from([...text].map((ch) => ({ ç: 0xe7, ã: 0xe3 })[ch] ?? ch.charCodeAt(0)));
+    for (const bytes of [cp1252, new TextEncoder().encode(text), new TextEncoder().encode('\uFEFF' + text)]) {
+      const g = await parseSpreadsheet('registo.csv', bytes);
+      expect(g.headers).toEqual(['Cama', 'Doente', 'Hora', 'Intervenção']);
+      expect(g.rows[0]).toEqual(['5', 'João Pereira', '02:40', 'Enoxaparina 40 mg SC']);
+    }
+  });
+
   it('maps data rows to spreadsheet cell references (header is row 1)', () => {
     expect(cellRef(0, 0)).toBe('A2');
     expect(cellRef(3, 5)).toBe('F5');

@@ -1,3 +1,4 @@
+import { ct } from './i18n';
 import { editDistance, fold } from './text';
 import type { Act, CensusEntry, IdentityIssue } from './types';
 
@@ -40,18 +41,17 @@ const isTransposition = (a: string, b: string) =>
 export function resolveIdentities(acts: Act[], census: CensusEntry[]): IdentityIssue[] {
   const issues: IdentityIssue[] = [];
   const byId = new Map(census.map((c) => [normId(c.patientId), c]));
-  const push = (kind: IdentityIssue['kind'], act: Act, detail: string, suggestion?: CensusEntry) => {
+  const push = (kind: IdentityIssue['kind'], act: Act, facts: NonNullable<IdentityIssue['facts']>, suggestion?: CensusEntry) => {
     const key = `${kind}|${suggestion?.patientId ?? act.patientId ?? act.bed}`;
     const existing = issues.find((i) => i.id === key);
     if (existing) {
       if (!existing.actIds.includes(act.id)) existing.actIds.push(act.id);
       return;
     }
+    const issue: IdentityIssue = { id: key, kind, actIds: [act.id], detail: '', facts };
     issues.push({
-      id: key,
-      kind,
-      actIds: [act.id],
-      detail,
+      ...issue,
+      detail: identityDetail(issue),
       ...(suggestion && { suggestion: { patientName: suggestion.patientName, patientId: suggestion.patientId } }),
     });
   };
@@ -61,16 +61,16 @@ export function resolveIdentities(acts: Act[], census: CensusEntry[]): IdentityI
     const name = act.patientName;
     if (!id && !name) {
       act.patientKey = null;
-      push('no-identity', act, `Bed ${act.bed || '?'} only: no name or hospital number. Do not attribute by bed.`);
+      push('no-identity', act, { bed: act.bed });
       continue;
     }
     const byIdHit = id ? byId.get(id) : undefined;
     if (byIdHit) {
       act.patientKey = byIdHit.patientId;
       const nm = name ? compareNames(name, byIdHit.patientName) : 'same';
-      if (nm === 'variant') push('name-variant', act, `“${name}” vs census “${byIdHit.patientName}” for ${byIdHit.patientId}`, byIdHit);
-      if (nm === 'different')
-        push('id-name-conflict', act, `${act.patientId} belongs to ${byIdHit.patientName} in the census, but the row says “${name}”`, byIdHit);
+      const facts = { name, rowId: act.patientId, censusName: byIdHit.patientName, censusId: byIdHit.patientId };
+      if (nm === 'variant') push('name-variant', act, facts, byIdHit);
+      if (nm === 'different') push('id-name-conflict', act, facts, byIdHit);
       continue;
     }
     const byName = name ? census.filter((c) => compareNames(name, c.patientName) !== 'different') : [];
@@ -78,13 +78,32 @@ export function resolveIdentities(acts: Act[], census: CensusEntry[]): IdentityI
       const c = byName[0]!;
       act.patientKey = c.patientId;
       if (id) {
-        const t = isTransposition(id, normId(c.patientId));
-        push('id-mismatch', act, `${name}: row says ${act.patientId}, census says ${c.patientId}${t ? ' (looks like transposed digits)' : ''}`, c);
+        const transposed = isTransposition(id, normId(c.patientId));
+        push('id-mismatch', act, { name, rowId: act.patientId, censusName: c.patientName, censusId: c.patientId, transposed }, c);
       }
       continue;
     }
     act.patientKey = id || `name:${fold(name)}`;
-    push('not-in-census', act, `${name || act.patientId} is not on the 21:00 census (admitted during the outage?)`);
+    push('not-in-census', act, { name, rowId: act.patientId, bed: act.bed });
   }
   return issues;
+}
+
+/** The identity problem in words, in the current interface language (older saved reviews keep their text). */
+export function identityDetail(issue: IdentityIssue): string {
+  const f = issue.facts;
+  if (!f) return issue.detail;
+  const t = ct().identity;
+  switch (issue.kind) {
+    case 'no-identity':
+      return t.noIdentity(f.bed ?? '');
+    case 'name-variant':
+      return t.nameVariant(f.name ?? '', f.censusName ?? '', f.censusId ?? '');
+    case 'id-name-conflict':
+      return t.idNameConflict(f.rowId ?? '', f.censusName ?? '', f.name ?? '');
+    case 'id-mismatch':
+      return t.idMismatch(f.name ?? '', f.rowId ?? '', f.censusId ?? '', !!f.transposed);
+    case 'not-in-census':
+      return t.notInCensus(f.name || f.rowId || '');
+  }
 }

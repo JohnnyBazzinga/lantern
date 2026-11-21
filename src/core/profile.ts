@@ -36,7 +36,7 @@ const RX = {
   startsWithTime: /^(?:[01]?\d|2[0-3]):[0-5]\d\b/,
   initials: /^(?:(?:RN|EN|Dr|Enf)\.?\s+)?[A-Z]{2,3}$/,
   yesNo: /^(?:yes|no|y|n|sim|não|nao|ok|x|✓|✔|done|sent)$/i,
-  bedNumber: /^(?:bed\s*)?\d{1,3}[A-Za-z]?$/i,
+  bedNumber: /^(?:(?:bed|cama)\s*)?\d{1,3}[A-Za-z]?$/i,
   dash: /^[-–—]+$/,
 };
 
@@ -61,9 +61,13 @@ export function profileColumns(headers: string[], rows: string[][]): ColumnProfi
   });
 }
 
-/** Words wards actually use for free-text columns; a third, model-free signal for act vs notes. */
-const NOTES_HEADER = /\b(comments?|notes?|remarks?|obs(?:ervations)? ?\/? ?comments?)\b/i;
-const ACT_HEADER = /\b(what|done|acts?|actions?|details?|descr\w*|interventions?|tasks?|drugs?|meds?|medications?|treatments?|given|care|entry|events?|procedures?)\b/i;
+/**
+ * Words wards actually use for free-text columns, in English and Portuguese; a third, model-free signal
+ * for act vs notes. In Portuguese forms "Observações" is the remarks column.
+ */
+const NOTES_HEADER = /\b(comments?|notes?|remarks?|obs(?:ervations)? ?\/? ?comments?|notas?|observa[cç](?:[aã]o|[oõ]es)|coment[aá]rios?)\b/i;
+const ACT_HEADER =
+  /\b(what|done|acts?|actions?|details?|descr\w*|interventions?|tasks?|drugs?|meds?|medications?|treatments?|given|care|entry|events?|procedures?|atos?|a[cç](?:[aã]o|[oõ]es)|interven[cç](?:[aã]o|[oõ]es)|registos?|procedimentos?|terap[eê]utica|medica[cç](?:[aã]o|[oõ]es)|f[aá]rmacos?|cuidados|ocorr[eê]ncias?|descri[cç][aã]o|efetuado|feito)\b/i;
 
 function suggest(s: ColumnProfile['shapes'], filled: number, header = ''): CanonicalField | null {
   if (filled === 0) return 'ignore';

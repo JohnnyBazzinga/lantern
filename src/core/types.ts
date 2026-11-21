@@ -79,7 +79,10 @@ export interface IdentityIssue {
   id: string;
   kind: IdentityIssueKind;
   actIds: string[];
+  /** the problem in words, in the language of the interface when it was found (see identityDetail) */
   detail: string;
+  /** what the rows and the census say, so the problem can be described again in any language */
+  facts?: { name?: string; rowId?: string; bed?: string; censusName?: string; censusId?: string; transposed?: boolean };
   suggestion?: { patientName: string; patientId: string };
 }
 
