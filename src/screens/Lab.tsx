@@ -31,6 +31,8 @@ interface SpikeState {
   status: Status;
   lines: string[];
   data?: unknown;
+  /** what was actually observed, when a pass can mean different things (S2: blocked vs ran locally) */
+  outcome?: string;
 }
 
 const idle: SpikeState = { status: 'idle', lines: [] };
@@ -125,12 +127,26 @@ export default function Lab() {
         cloudModel,
       });
       lines.push(`inferenceSource: ${r.inferenceSource}`, `Gemini requests: ${r.ledger.inferenceRequests}`);
-      setS2({ status: r.inferenceSource === 'on_device' && r.ledger.inferenceRequests === 0 ? 'pass' : 'fail', lines });
+      const ok = r.inferenceSource === 'on_device' && r.ledger.inferenceRequests === 0;
+      setS2({
+        status: ok ? 'pass' : 'fail',
+        lines,
+        outcome: ok
+          ? 'Local inference succeeded: Gemini Nano answered on this device, 0 requests to Gemini.'
+          : `Not on this device: inferenceSource ${r.inferenceSource}, ${r.ledger.inferenceRequests} Gemini requests.`,
+      });
     } catch (e) {
       // Being blocked is the correct outcome when there is no local model.
       const sum = ledgerSummary();
       lines.push(`blocked: ${e instanceof Error ? e.message : String(e)}`, `user-data requests to cloud so far: ${sum.userDataRequestsToCloud}`);
-      setS2({ status: sum.userDataRequestsToCloud === 0 ? 'pass' : 'fail', lines });
+      const ok = sum.userDataRequestsToCloud === 0;
+      setS2({
+        status: ok ? 'pass' : 'fail',
+        lines,
+        outcome: ok
+          ? 'Successful block: no usable on-device model, so Lantern refused the call and sent nothing. This is not a local inference; run S1 to see one.'
+          : `Blocked, but ${sum.userDataRequestsToCloud} user-data requests reached the cloud earlier in this session.`,
+      });
     } finally {
       if (overridden) {
         if (original) Object.defineProperty(self, 'LanguageModel', original);
@@ -357,7 +373,7 @@ export default function Lab() {
       config,
       firebase: { configured: firebaseConfigured, projectId, appCheck: appCheckConfigured },
       S1: s1.data ?? s1.status,
-      S2: { status: s2.status, lines: s2.lines },
+      S2: { status: s2.status, outcome: s2.outcome, lines: s2.lines },
       S3_local: (s3.data as { summary?: unknown } | undefined)?.summary ?? s3.status,
       S3_cloud: (s3cloud.data as { summary?: unknown } | undefined)?.summary ?? s3cloud.status,
       S3_mapping: (s3m.data as { summary?: unknown } | undefined)?.summary ?? s3m.status,
@@ -593,7 +609,7 @@ function Kv({ k, v }: { k: string; v: string | number }) {
 }
 
 function Spike(props: { icon: React.ReactNode; title: string; how: string; state: SpikeState; onRun: () => void; extra?: React.ReactNode }) {
-  const { status, lines } = props.state;
+  const { status, lines, outcome } = props.state;
   const badge =
     status === 'pass'
       ? 'bg-device/15 text-device'
@@ -619,6 +635,9 @@ function Spike(props: { icon: React.ReactNode; title: string; how: string; state
           </button>
         </div>
       </div>
+      {outcome && status !== 'running' && (
+        <p className={`mt-3 text-sm font-semibold ${status === 'pass' ? 'text-device' : 'text-alert'}`}>{outcome}</p>
+      )}
       {lines.length > 0 && (
         <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-ink-950 p-3 font-mono text-xs leading-relaxed text-ink-200">
           {lines.join('\n')}

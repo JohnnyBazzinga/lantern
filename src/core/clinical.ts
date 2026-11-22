@@ -1,3 +1,4 @@
+import { controlledDrugIn, drugName } from './drugs';
 import { ct } from './i18n';
 import type { Act } from './types';
 
@@ -105,7 +106,10 @@ export function clinicalPartBy(a: Pick<Act, 'actText' | 'notes' | 'documentedBy'
 
 const FALL = /\b(?:fall|fell|found on (?:the )?floor|slipped|queda|caiu|encontrad[oa] no ch[aã]o|escorregou)\b/i;
 
-/** Follow-ups a re-entry list should not forget. */
+/** Follow-ups a re-entry list should not forget: an incident report for a fall, the register for a controlled drug. */
 export function followUp(a: Pick<Act, 'actText' | 'notes'>): string | null {
-  return FALL.test(`${a.actText} ${a.notes}`) ? ct().fallFollowUp : null;
+  const t = ct();
+  const cd = controlledDrugIn(a);
+  const out = [FALL.test(`${a.actText} ${a.notes}`) && t.fallFollowUp, cd && t.controlledFollowUp(drugName(cd))].filter(Boolean);
+  return out.length ? out.join(' ') : null;
 }

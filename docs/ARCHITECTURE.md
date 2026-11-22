@@ -64,6 +64,8 @@ On-device sessions ignore `inCloudParams`, so each task's system prompt travels 
 
 A correction note is a word such as "corrected", "corr.", "amended", "error", "mistake", "wrong", "not given", "was not", "instead of", "should be", "actually" or "by mistake", or its Portuguese equivalent ("corrigido", "correção", "por engano", "não administrada", "em vez de", "deve ler-se", "afinal", "anulado"). Exact copies must match in patient, time, act **and comments**, so a correction written only in the comments column is never taken for a copy. Error-prone abbreviations (an ISMP subset: `MS`, `MSO4`, `MgSO4`, `U` for units, `IU`, `QD`/`QOD`, trailing zero, naked decimal) always become open questions for the documenting clinician, whatever any model says.
 
+**Same medicine, same patient** (`src/core/drugs.ts`). A lexicon of common ward medicines, in English and Portuguese with brand names, lets the review show every row that names the same medicine for the same patient, across both files, earliest first, with each row's current decision. A row written with an error-prone abbreviation (`MS 10mg`) appears next to each medicine it may stand for, marked as uncertain and never interpreted. For opioids kept in a controlled-drug register, the review and the worklist remind whoever enters the dose to check it against the ward register first.
+
 ## Retries and timeouts (`src/ai/models.ts`)
 
 - **Cloud:** each request times out after 45 s (the SDK default is 180 s).

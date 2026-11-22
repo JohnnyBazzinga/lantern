@@ -107,7 +107,7 @@ The interface is in English and European Portuguese, switched with the EN/PT but
 
 ```
 src/ai/          model routes, capability guard, cloud payload guard, network watcher, ledger, prompts/v1
-src/core/        deterministic pipeline: parse, profile, mapping, acts, identity, candidates, reconcile, worklist, score; i18n.ts (clinical wording, EN/PT)
+src/core/        deterministic pipeline: parse, profile, mapping, acts, identity, candidates, reconcile, worklist, score; drugs.ts (same-medicine rows); i18n.ts (clinical wording, EN/PT)
 src/i18n/        interface language: state, EN/PT switch
 src/app/         pipeline orchestration, review items, session state (Dexie/IndexedDB)
 src/screens/     Start, Sources (columns), Review, Worklist, Result, Working overlay, Lab

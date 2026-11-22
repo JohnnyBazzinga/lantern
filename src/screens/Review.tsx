@@ -4,6 +4,7 @@ import { subscribeLedger, type LedgerEntry } from '../ai/ledger';
 import { groupCopy, isDecided, suggested, type ReviewItem } from '../app/review';
 import { sessionTitle, useSession } from '../app/session';
 import { isHighAlert, ownerOf, relayedFrom } from '../core/clinical';
+import { doseStatus, drugName, sameDrugRows, type DoseStatus } from '../core/drugs';
 import { identityDetail } from '../core/identity';
 import { pairQuestion, singleQuestion } from '../core/questions';
 import { GROUP_ORDER, guard, rowRef, ruleVerdict, type EscalationReason, type ReviewGroup } from '../core/reconcile';
@@ -115,6 +116,19 @@ const M = msgs(
       ": the first AI opinion and Lantern's rules disagreed, or two rows compete for the same act. Because this is the fictional drill, you can ask a larger model in the cloud for a second opinion. It receives the clinical text of those rows as written, without the name, hospital number and bed columns.",
     showSent: (show: boolean) => `${show ? 'Hide' : 'Show'} what will be sent`,
     askCloud: 'Ask the cloud',
+    strip: (drug: string) => `${drug} for this patient: every row in both files`,
+    stripHint: 'Earliest first. Rows with no time come last.',
+    inThis: 'in this comparison',
+    maybe: (drug: string) => `may be ${drug}: an error-prone abbreviation, never interpreted`,
+    dose: {
+      listed: 'on the list',
+      copy: 'marked as a copy',
+      waiting: 'waiting for an answer',
+      'left-out': 'left out',
+      open: 'not decided yet',
+    } as Record<DoseStatus, string>,
+    controlled: (drug: string) =>
+      `Controlled drug (${drug}): whoever enters these doses should check them against the ward's controlled-drug register first.`,
   },
   {
     relation: {
@@ -214,6 +228,19 @@ const M = msgs(
       ': a primeira opinião da IA e as regras do Lantern não concordaram, ou duas linhas podem ser o mesmo ato. Como este é o simulacro fictício, pode pedir uma segunda opinião a um modelo maior, na nuvem. Esse modelo recebe o texto clínico dessas linhas tal como está escrito (em inglês), sem as colunas de nome, n.º de processo e cama.',
     showSent: (show) => `${show ? 'Esconder' : 'Mostrar'} o que vai ser enviado`,
     askCloud: 'Pedir uma segunda opinião (envia linhas fictícias)',
+    strip: (drug) => `${drug} neste processo: todas as linhas dos dois ficheiros`,
+    stripHint: 'Da mais antiga para a mais recente. As linhas sem hora ficam no fim.',
+    inThis: 'nesta comparação',
+    maybe: (drug) => `pode ser ${drug}: abreviatura propensa a erro, nunca interpretada`,
+    dose: {
+      listed: 'na lista',
+      copy: 'marcada como cópia',
+      waiting: 'à espera de resposta',
+      'left-out': 'deixada de fora',
+      open: 'por decidir',
+    },
+    controlled: (drug) =>
+      `Estupefaciente (${drug}): quem registar estas doses deve confirmá-las primeiro no registo de estupefacientes do serviço.`,
   },
 );
 
@@ -406,6 +433,7 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
       </div>
 
       <MarginNotes item={item} candidate={candidate} a={a} b={b} />
+      <SameDrugStrip focus={b ? [a, b] : [a]} />
 
       <div className="mt-7 border-t border-rule pt-5">
         {decided && <CurrentDecision item={item} />}
@@ -418,6 +446,70 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
         )}
       </div>
     </article>
+  );
+}
+
+const capital = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+
+/**
+ * Every row for the same patient that names the same medicine, across both files, with where each
+ * one stands now. A re-typed copy with no time, a dose missing from the later file and an "MS 10mg"
+ * line all become visible next to each other before the reviewer decides.
+ */
+function SameDrugStrip({ focus }: { focus: Act[] }) {
+  const s = useSession();
+  const t = useT(M);
+  const session = s.session!;
+  const strips = sameDrugRows(session.acts, focus);
+  if (!strips.length) return null;
+  const inFocus = new Set(focus.map((a) => a.id));
+  return (
+    <>
+      {strips.map(({ key, controlled, rows }) => {
+        const name = drugName(key);
+        if (rows.length < 2)
+          return controlled ? (
+            <p key={key} className="mt-5 max-w-[72ch] text-[15px] font-semibold text-pen">
+              {t.controlled(name)}
+            </p>
+          ) : null;
+        return (
+          <section key={key} aria-label={t.strip(capital(name))} className="mt-6">
+            <h3 className="font-semibold">{t.strip(capital(name))}</h3>
+            <p className="text-sm text-ink-faint">{t.stripHint}</p>
+            <div className="mt-2 overflow-x-auto rounded-[3px] border border-rule-strong bg-sheet">
+              <table className="w-full min-w-[560px] border-collapse text-left text-[15px]">
+                <tbody>
+                  {rows.map(({ act, sure }) => {
+                    const d = session.decisions[act.id];
+                    const status = doseStatus(d);
+                    const mine = inFocus.has(act.id);
+                    return (
+                      <tr key={act.id} className={`border-b border-rule last:border-b-0 ${mine ? 'bg-marker/25 shadow-[inset_3px_0_0_var(--color-ink)]' : ''}`}>
+                        <td className="w-[5.5rem] px-3 py-2 align-top font-mono tabular-nums">{act.eventTime || <span className="text-ink-faint">{t.noTime}</span>}</td>
+                        <td className="px-3 py-2 align-top">
+                          <span className="font-mono">{act.actText}</span>
+                          {act.notes && <span className="block text-sm text-ink-soft">{act.notes}</span>}
+                          {!sure && <span className="block text-sm text-pen">{t.maybe(name)}</span>}
+                        </td>
+                        <td className="w-[11rem] px-3 py-2 align-top text-sm text-ink-soft">
+                          {rowRef(act)}
+                          {mine && <span className="block font-semibold text-ink">{t.inThis}</span>}
+                        </td>
+                        <td className={`w-[10rem] px-3 py-2 align-top text-sm ${status === 'open' ? 'text-ink-faint' : status === 'listed' ? 'text-scrub' : 'text-ink-soft'}`}>
+                          {d?.kind === 'unresolved' ? t.waiting(d.owner) : t.dose[status]}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {controlled && <p className="mt-2 max-w-[72ch] text-[15px] font-semibold text-pen">{t.controlled(name)}</p>}
+          </section>
+        );
+      })}
+    </>
   );
 }
 

@@ -41,6 +41,7 @@ const en = {
   nurse: (initials: string) => `nurse ${initials}`,
   nurseInCharge: 'nurse in charge',
   fallFollowUp: 'A fall: an incident report is needed too.',
+  controlledFollowUp: (drug: string) => `Controlled drug (${drug}): check this dose against the ward's controlled-drug register before entering it.`,
 
   fieldLabel: {
     bed: 'Bed',
@@ -186,6 +187,7 @@ const pt: typeof en = {
   nurse: (initials: string) => `enf. ${initials}`,
   nurseInCharge: 'enf. responsável pelo turno',
   fallFollowUp: 'Uma queda: é preciso também notificar o incidente.',
+  controlledFollowUp: (drug: string) => `Estupefaciente (${drug}): confirme esta dose no registo de estupefacientes do serviço antes de a registar.`,
 
   fieldLabel: {
     bed: 'Cama',

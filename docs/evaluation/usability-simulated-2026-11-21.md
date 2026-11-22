@@ -67,8 +67,8 @@ Severity is the highest any participant gave (0–4). "Found by" counts independ
 | F17 | Nothing said who made the app or where the data-protection statement is | P2 | 2 | **Fixed:** footer links; "not approved for real patients" |
 | F18 | An English-only interface for Portuguese staff | P1 P3 (+R2) | 2 | **Fixed** (UI, questions, late-entry notes, CSV in pt-PT; Portuguese lexicons for the rules). Gemini Nano on Portuguese text is still unvalidated |
 | F19 | No per-user authentication on a shared PC | P4 | — | **Out of scope:** deploy on individual managed accounts (documented) |
-| F20 | A per-patient strip of same-drug doses that night; a reminder to check the controlled-drug register | P3 | 2 | Open |
-| F21 | The Lab's S2 should say whether it saw a successful block or a successful local inference | P4 | 2 | Open |
+| F20 | A per-patient strip of same-drug doses that night; a reminder to check the controlled-drug register | P3 | 2 | **Fixed (2026-11-22):** every row for the same patient and medicine, across both files, with its status; error-prone abbreviations shown as "may be", never interpreted; a controlled-drug register reminder in the review and on the worklist |
+| F21 | The Lab's S2 should say whether it saw a successful block or a successful local inference | P4 | 2 | **Fixed (2026-11-22):** S2 states which one it observed |
 
 After the fixes, the same drill on the hosted site gives 27/27 acts ready, 0 lost, 0 entered twice, 3/3 corrections,
 2/2 questions and 4/4 identity problems with the cloud model. With **no model at all** (local build, App Check
@@ -118,4 +118,3 @@ Running a small Portuguese sheet through the no-model path, as a test, found two
    in Portuguese; until Nano is validated on Portuguese text, it only proposes and the rules carry the safety.
 3. A pre-flight page for IT (model availability, disk, policies), extending the Lab.
 4. A draft DPIA and a clinical-safety hazard log, for a hospital pilot.
-5. F20 and F21.

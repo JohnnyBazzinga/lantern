@@ -27,6 +27,10 @@ const M = msgs(
     agree: 'Header and values agree',
     fromHeader: 'Read from the header',
     fromValues: 'Read from the values',
+    legend:
+      'Under each choice, Lantern says how it decided: "Header and values agree" (both point to the same meaning), "Read from the header" or "Read from the values" (only one of them was clear). Text in red needs your eye.',
+    stillFlagged: (n: number) => `${n} ${n === 1 ? 'column is' : 'columns are'} highlighted above.`,
+    allChecked: 'All columns read.',
     compare: 'Compare the two versions',
     runs: 'Runs',
     drillCloud: 'where available; this browser will use the cloud for the synthetic drill',
@@ -50,6 +54,10 @@ const M = msgs(
     agree: 'O cabeçalho e os valores coincidem',
     fromHeader: 'Lido do cabeçalho',
     fromValues: 'Lido dos valores',
+    legend:
+      'Por baixo de cada escolha, o Lantern diz como decidiu: «O cabeçalho e os valores coincidem» (ambos apontam para o mesmo significado), «Lido do cabeçalho» ou «Lido dos valores» (só um deles era claro). O texto a vermelho precisa da sua atenção.',
+    stillFlagged: (n) => `${n} ${n === 1 ? 'coluna está assinalada' : 'colunas estão assinaladas'} acima.`,
+    allChecked: 'Todas as colunas foram lidas.',
     compare: 'Comparar as duas versões',
     runs: 'Corre',
     drillCloud: 'quando disponível; este navegador vai usar a nuvem para o simulacro fictício',
@@ -66,9 +74,14 @@ export default function Sources() {
   const t = useT(M);
   const session = s.session!;
   const flagged = session.files.flatMap((f) => f.mapping.filter((c) => c.needsReview)).length;
+  const runsOn = (
+    <>
+      {t.runs} <RanOn source="on_device" /> {session.kind === 'drill' && s.local !== 'available' ? t.drillCloud : ''}
+    </>
+  );
 
   return (
-    <main className="mx-auto max-w-6xl px-5 pb-20 pt-8 sm:px-8">
+    <main className="mx-auto max-w-6xl px-5 pt-8 sm:px-8">
       <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <LanternMark />
@@ -88,6 +101,7 @@ export default function Sources() {
         {t.lede}
         {flagged ? t.flagged(flagged) : t.clean}
       </p>
+      <p className="mt-2 max-w-[72ch] text-[15px] text-ink-faint">{t.legend}</p>
 
       <div className="mt-10 space-y-12">
         {session.files.map((f) => (
@@ -161,19 +175,23 @@ export default function Sources() {
         ))}
       </div>
 
-      <div className="mt-10 flex flex-wrap items-center gap-4">
-        <Button onClick={() => void s.compare()} disabled={!!s.busy} className="px-5 py-3 text-base">
-          {t.compare}
-        </Button>
-        <span className="flex items-center gap-2 text-sm text-ink-soft">
-          {t.runs} <RanOn source="on_device" /> {session.kind === 'drill' && s.local !== 'available' ? t.drillCloud : ''}
-        </span>
-      </div>
-      {s.error && (
-        <div className="mt-4 max-w-[64ch]">
-          <Notice tone="pen">{s.error}</Notice>
+      {/* the action stays in view: the tables are long and the button used to sit far below the fold */}
+      <div className="sticky bottom-0 z-10 mt-10 border-t border-rule-strong bg-paper py-3 sm:py-4">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Button onClick={() => void s.compare()} disabled={!!s.busy} className="px-5 py-3 text-base">
+            {t.compare}
+          </Button>
+          <span className={`text-sm ${flagged ? 'text-pen' : 'text-ink-soft'}`}>{flagged ? t.stillFlagged(flagged) : t.allChecked}</span>
+          {/* on a phone the bar keeps to the button and the count; where it runs is said below */}
+          <span className="hidden items-center gap-2 text-sm text-ink-soft sm:flex">{runsOn}</span>
         </div>
-      )}
+        {s.error && (
+          <div className="mt-3 max-w-[64ch]">
+            <Notice tone="pen">{s.error}</Notice>
+          </div>
+        )}
+      </div>
+      <p className="flex flex-wrap items-center gap-2 pb-6 text-sm text-ink-soft sm:hidden">{runsOn}</p>
     </main>
   );
 }
