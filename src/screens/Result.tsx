@@ -301,7 +301,7 @@ function Bars({ total, rows }: { total: number; rows: [string, DrillScore][] }) 
   // the number is always on the segment; its name too where there is room, and always in the legend above
   const seg = (n: number, name: string, look: string, named = false, style?: React.CSSProperties) =>
     n > 0 && (
-      <span title={`${n} ${name}`} className={`flex h-full min-w-0 items-center overflow-hidden rounded-[4px] px-2 text-[15px] font-semibold tabular-nums ${look}`} style={{ width: w(n), ...style }}>
+      <span title={`${n} ${name}`} className={`flex h-full min-w-[1.6rem] items-center justify-center overflow-hidden rounded-[4px] px-1 text-[15px] font-semibold tabular-nums sm:min-w-[2rem] ${named ? 'justify-start px-2' : ''} ${look}`} style={{ width: w(n), ...style }}>
         <span className="truncate">
           {n}
           {named && <span className="hidden font-normal sm:inline"> {name}</span>}
