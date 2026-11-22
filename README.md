@@ -133,7 +133,7 @@ Third-party libraries:
 - Vitest
 - TypeScript
 
-Fonts are Atkinson Hyperlegible Next and Mono, from Google Fonts.
+Fonts are Atkinson Hyperlegible Next and Mono, bundled with the app (`@fontsource-variable`), so they are available offline.
 
 ## Licence
 

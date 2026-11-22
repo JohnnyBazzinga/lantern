@@ -29,8 +29,8 @@ export default defineConfig({
         short_name: 'Lantern',
         description:
           'Turn the paper and spreadsheets of a hospital IT outage into a validated re-entry worklist, on-device.',
-        theme_color: '#17202b',
-        background_color: '#f5f6f3',
+        theme_color: '#0f1b2d',
+        background_color: '#f2f4f6',
         display: 'standalone',
         icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
       },
@@ -38,13 +38,6 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,csv,xlsx,json,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: '/index.html',
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: { cacheName: 'fonts', expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 }, cacheableResponse: { statuses: [0, 200] } },
-          },
-        ],
       },
     }),
   ],

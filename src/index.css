@@ -1,27 +1,35 @@
 @import "tailwindcss";
+/* Bundled, so the service worker precaches them and a first offline load has its fonts. */
+@import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
+@import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css";
 
 /*
- * Lantern's palette comes from ward paperwork, not from software dashboards:
- * chart paper and blue-black ballpoint, a highlighter for what differs between versions,
- * red pen for what needs a decision, scrub teal for "ran on this device", ballpoint blue for "cloud".
+ * The morning desk, and the night on it.
+ * A bright working surface with strips cut from the ward's own spreadsheets, and one dark band
+ * (the hours the record was down) wherever time matters. Colour is only ever a signal:
+ * highlighter for what differs between versions, red pen for what needs a decision or an answer,
+ * scrub teal for "ran on this device", ballpoint blue for "ran in the cloud".
  */
 @theme {
-  --color-paper: #f5f6f3;
-  --color-sheet: #ffffff;
-  --color-ink: #17202b;
-  --color-ink-soft: #4b5563;
-  --color-ink-faint: #6b7380;
-  --color-rule: #d8dce1;
-  --color-rule-strong: #aeb5be;
-  --color-pen: #c2372c;
-  --color-pen-wash: #fbe9e7;
-  --color-marker: #ffe45c;
-  --color-scrub: #0f7b6c;
-  --color-scrub-wash: #e3f3f0;
-  --color-ballpoint: #2d5bd7;
-  --color-ballpoint-wash: #e8eefc;
+  --color-night: #0f1b2d; /* the outage band, the primary action, the strongest ink */
+  --color-night-soft: #1f2f49;
+  --color-paper: #f2f4f6; /* the desk: page ground, queue, bars */
+  --color-sheet: #ffffff; /* the working surface: evidence and the open item */
+  --color-gutter: #e6eaee; /* sheet gutters and headers, as in a spreadsheet */
+  --color-ink: #16202c;
+  --color-ink-soft: #445160;
+  --color-ink-faint: #5f6b78;
+  --color-rule: #d3d9df;
+  --color-rule-strong: #7f8a97; /* 3.6:1 on the sheet: control and sheet borders */
+  --color-pen: #b92d22;
+  --color-pen-wash: #fbeae8;
+  --color-marker: #ffdd55;
+  --color-scrub: #0b6e63;
+  --color-scrub-wash: #dff1ee;
+  --color-ballpoint: #2452cc;
+  --color-ballpoint-wash: #e6ecfb;
 
-  /* Lab (internal diagnostics page) keeps its own dark palette */
+  /* Lab (internal diagnostics page) keeps its own dark palette; `lamp` is also the lamp on the night line */
   --color-ink-950: #0b0d11;
   --color-ink-900: #0f1115;
   --color-ink-850: #14171d;
@@ -36,10 +44,35 @@
   --color-cloud: #7aa7ff;
   --color-alert: #ff7a6b;
 
-  /* Atkinson Hyperlegible: drawn for legibility by the Braille Institute; the Mono cut is used only
-     for text copied verbatim from a source cell, where every character is evidence. */
-  --font-sans: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Two voices. Next is Lantern speaking. Mono is the ward speaking: it is used only for text copied
+     from a source cell, where every character is evidence. Atkinson Hyperlegible is drawn so that
+     0 O, 1 l I and 5 S cannot be mistaken for each other, which is this product's whole subject. */
+  --font-sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono Variable", "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-weight-semibold: 650;
+  --font-weight-extrabold: 800;
+
+  --animate-night-draw: night-draw 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-lamp-on: lamp-on 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  @keyframes night-draw {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+  @keyframes lamp-on {
+    from {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
 }
 
 :root {
@@ -56,7 +89,7 @@ body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -67,11 +100,31 @@ body {
   outline-offset: 2px;
 }
 
-/* the highlighter: marks the characters that differ between two versions of the same act */
+/* The highlighter: marks what differs between two versions of the same act. When an item opens it
+   sweeps across the difference once, left to right. */
 mark.diff {
-  background: linear-gradient(180deg, transparent 12%, var(--color-marker) 12%, var(--color-marker) 88%, transparent 88%);
+  background: linear-gradient(var(--color-marker), var(--color-marker)) no-repeat left center / 100% 100%;
   color: inherit;
-  padding: 0 1px;
+  padding: 1px 2px;
+  margin: 0 -2px;
+  border-radius: 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  animation: lit 320ms 120ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes lit {
+  from {
+    background-size: 0% 100%;
+  }
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+/* a cell the source does not have (the census has no "what was done") */
+.no-cell {
+  background: repeating-linear-gradient(135deg, transparent 0 6px, var(--color-gutter) 6px 7px);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -79,6 +132,7 @@ mark.diff {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
   }
 }
@@ -96,5 +150,8 @@ mark.diff {
   }
   .print-only {
     display: block;
+  }
+  mark.diff {
+    animation: none;
   }
 }
