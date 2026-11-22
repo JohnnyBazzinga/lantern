@@ -601,11 +601,14 @@ function SameDrugStrip({ focus }: { focus: Act[] }) {
           } else marks.push({ at: act.timeMinutes, label: act.eventTime, count: 1, focus: inFocus.has(act.id), unsure: !sure, title: act.actText });
         }
         const untimed = rows.filter((r) => r.act.timeMinutes === null).length;
-        // only between two neighbouring lamps, which both have a time written; a row with no time has no gap to anything
-        const gaps: (NightGap & { sentence: string; fits: boolean })[] = marks.slice(1).map((m, i) => {
+        // Only between two neighbouring lamps that are both surely this medicine and both have a time written.
+        // A gap to an "MS 10mg" row would read as "two doses of morphine", which is the interpretation Lantern
+        // refuses to make; and a row with no time has no gap to anything.
+        const gaps: (NightGap & { sentence: string; fits: boolean })[] = marks.slice(1).flatMap((m, i) => {
           const prev = marks[i]!;
+          if (m.unsure || prev.unsure) return [];
           const label = t.apart(Math.floor((m.at - prev.at) / 60), (m.at - prev.at) % 60);
-          return { from: prev.at, to: m.at, label, sentence: t.gapBetween(prev.label, m.label, label), fits: (m.at - prev.at) / (range.to - range.from) >= GAP_FITS };
+          return [{ from: prev.at, to: m.at, label, sentence: t.gapBetween(prev.label, m.label, label), fits: (m.at - prev.at) / (range.to - range.from) >= GAP_FITS }];
         });
         return (
           <section key={key} aria-label={t.strip(capital(name))} className="mt-7">
