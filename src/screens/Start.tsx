@@ -28,6 +28,9 @@ const M = msgs(
     resume: 'Resume it',
     remove: 'Delete it from this PC',
     drillNote: 'The drill uses a fictional ward and fictional patients. It takes about ten minutes.',
+    hides:
+      'Hidden in the two versions: three corrections, three rows lost when the sheet was sorted, four patient-identity problems, two entries only their author can explain, and three pairs that look alike but are separate acts. At the end you see what became of each.',
+    pickFirst: 'Pick the earlier and the later version to open them.',
     ownTitle: 'Use your own files',
     ownText:
       "Pick two versions of the same downtime log, and the census if you have one. They are read in this browser and never uploaded; comparisons run on this device only. Even without an on-device model, Lantern flags identical rows, corrections, possible repeat doses and identity problems. The reviewer decides whatever is left open.",
@@ -89,6 +92,9 @@ const M = msgs(
     resume: 'Retomar',
     remove: 'Apagar deste computador',
     drillNote: 'O simulacro usa uma enfermaria e doentes fictícios, com registos escritos em inglês. Demora cerca de dez minutos.',
+    hides:
+      'Escondidos nas duas versões: três correções, três linhas perdidas quando a folha foi ordenada, quatro dúvidas de identificação, dois registos que só quem os escreveu pode explicar e três pares parecidos que são atos diferentes. No fim, vê o que aconteceu a cada um.',
+    pickFirst: 'Escolha a versão anterior e a posterior para as abrir.',
     ownTitle: 'Usar os seus ficheiros',
     ownText:
       'Escolha duas versões da mesma folha de contingência e, se a tiver, a lista de doentes. São lidas neste navegador e nunca são enviadas; as comparações correm só neste computador. Mesmo sem IA local, o Lantern assinala linhas iguais, correções, possíveis repetições de dose e dúvidas de identificação. Cabe a quem faz a revisão decidir o que fica por esclarecer.',
@@ -189,6 +195,7 @@ export default function Start() {
             {t.startDrill}
           </Button>
           <p className="mt-2.5 text-[15px] text-ink-soft">{t.drillNote}</p>
+          <p className="mt-2 text-[15px] leading-[1.45] text-ink-soft">{t.hides}</p>
         </div>
       </div>
 
@@ -290,9 +297,13 @@ export default function Start() {
             <FilePick label={t.earlier} hint={t.fileTypes} inputRef={earlier} picked={picked.earlier} onPick={(n) => setPicked((p) => ({ ...p, earlier: n }))} />
             <FilePick label={t.later} hint={t.fileTypes} inputRef={later} picked={picked.later} onPick={(n) => setPicked((p) => ({ ...p, later: n }))} />
           </div>
-          <Button tone="secondary" className="mt-4" disabled={!picked.earlier || !picked.later || !!s.busy} onClick={importFiles}>
-            {t.open}
-          </Button>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Button tone="secondary" disabled={!picked.earlier || !picked.later || !!s.busy} onClick={importFiles}>
+              {t.open}
+            </Button>
+            {/* a disabled button says why */}
+            {(!picked.earlier || !picked.later) && <span className="text-[15px] text-ink-soft">{t.pickFirst}</span>}
+          </div>
         </section>
       </div>
 

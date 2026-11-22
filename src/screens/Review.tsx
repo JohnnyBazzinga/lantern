@@ -36,6 +36,8 @@ const M = msgs(
       'local-unavailable': 'no AI model judged this pair',
     } as Record<EscalationReason, string>,
     pageTitle: 'Review',
+    arrival: (rows: number, items: number, copies: number) =>
+      `Lantern compared ${rows} rows and left ${items} things to decide, most urgent first.${copies ? ` The ${copies} identical pairs at the end can be accepted in one click.` : ''}`,
     nothing: 'Nothing to review.',
     allDecided: 'Every row has a decision.',
     openWorklist: 'Open the re-entry worklist',
@@ -161,6 +163,8 @@ const M = msgs(
       'local-unavailable': 'nenhum modelo de IA avaliou este par',
     },
     pageTitle: 'Revisão',
+    arrival: (rows, items, copies) =>
+      `O Lantern comparou ${rows} linhas e deixou ${items} pontos para decidir, do mais urgente para o menos urgente.${copies ? ` Os ${copies} pares iguais, no fim, podem ser aceites de uma vez.` : ''}`,
     nothing: 'Nada para rever.',
     allDecided: 'Todas as linhas têm uma decisão.',
     openWorklist: 'Abrir a lista para registo',
@@ -370,6 +374,12 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
               </p>
               <Button onClick={onWorklist}>{t.openWorklist}</Button>
             </div>
+          )}
+          {/* on arrival, one line says what just happened and what to do; it goes with the first decision */}
+          {s.decidedCount === 0 && waitingItems.length === 0 && items.length > 0 && (
+            <p className="border-b border-rule bg-gutter px-4 py-2.5 text-[16px] leading-snug sm:px-8">
+              {t.arrival(session.acts.length, items.length, items.filter((i) => i.group === 'copies').length)}
+            </p>
           )}
           {session.kind === 'drill' && s.escalated.size > 0 && !session.cloudAsked && <CloudOffer />}
           {active ? <ItemView key={active.id} item={active} onDone={() => next(active)} /> : <p className="px-4 py-6 sm:px-8">{t.nothing}</p>}
