@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronRight } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Check, ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
 import { subscribeLedger, type LedgerEntry } from '../ai/ledger';
 import { groupCopy, isDecided, suggested, type ReviewItem } from '../app/review';
 import { sessionTitle, useSession } from '../app/session';
@@ -11,10 +11,12 @@ import { GROUP_ORDER, guard, rowRef, ruleVerdict, type EscalationReason, type Re
 import { errorProneAbbreviations } from '../core/text';
 import { AnswerBox } from '../ui/AnswerBox';
 import type { Act, Disposition, IdentityIssue, Judgment, MatchCandidate, Relation } from '../core/types';
-import { Button, LanternMark, Meter, Notice, RanOn } from '../ui/kit';
-import { PatientLine, Slip } from '../ui/Slip';
+import { AppBar, Button, Meter, Route, Steps } from '../ui/kit';
+import { NightLine, type NightMark } from '../ui/NightLine';
+import { actRow, censusRow, PatientLine, Stack, useNoTime, type StackRow } from '../ui/Slip';
+import { Tally } from '../ui/Tally';
 import { msgs } from '../i18n/lang';
-import { LangToggle, useT } from '../i18n/react';
+import { useT } from '../i18n/react';
 import { versionName } from './Sources';
 
 const M = msgs(
@@ -74,7 +76,7 @@ const M = msgs(
     reads: 'reads these as',
     because: (e: string) => `, because of “${e}”`,
     overrides: (rule: string) => `Lantern overrides this: ${rule}.`,
-    why: 'Why Lantern suggests this',
+    why: "Lantern's reading",
     identical: 'Identical text, time and patient in both files.',
     rulesOnly: (rule: string) => `No AI judged this pair. Lantern's rules: ${rule}.`,
     relayed: (by: string, x: string) => `${by || 'Someone'} wrote this correction on ${x}'s word. ${x} must confirm it: it changes ${x}'s record.`,
@@ -115,7 +117,7 @@ const M = msgs(
     disputedText:
       ": the first AI opinion and Lantern's rules disagreed, or two rows compete for the same act. Because this is the fictional drill, you can ask a larger model in the cloud for a second opinion. It receives the clinical text of those rows as written, without the name, hospital number and bed columns.",
     showSent: (show: boolean) => `${show ? 'Hide' : 'Show'} what will be sent`,
-    askCloud: 'Ask the cloud',
+    askCloud: 'Ask for a second opinion (sends fictional rows)',
     strip: (drug: string) => `${drug} for this patient: every row in both files`,
     stripHint: 'Earliest first. Rows with no time come last.',
     inThis: 'in this comparison',
@@ -129,6 +131,13 @@ const M = msgs(
     } as Record<DoseStatus, string>,
     controlled: (drug: string) =>
       `Controlled drug (${drug}): whoever enters these doses should check them against the ward's controlled-drug register first.`,
+    disputedOffer: ' A larger model in the cloud can give a second opinion, on these fictional drill rows only.',
+    queueSummary: (done: number, total: number) => `Review queue, ${done} of ${total} decided`,
+    status: { open: 'not decided', waiting: 'waiting for an answer', done: 'decided' },
+    censusShort: 'census',
+    nightLine: (drug: string) => `When each ${drug} row is timed, through the night`,
+    untimed: (n: number) => `${n} ${n === 1 ? 'row has' : 'rows have'} no time written, so ${n === 1 ? 'it is' : 'they are'} not placed on the line.`,
+    rowsAt: (n: number, time: string) => `${n} rows at ${time}`,
   },
   {
     relation: {
@@ -186,7 +195,7 @@ const M = msgs(
     reads: 'lê estas linhas como',
     because: (e) => `, por causa de “${e}”`,
     overrides: (rule) => `As regras do Lantern prevalecem: ${rule}.`,
-    why: 'Porque é que o Lantern sugere isto',
+    why: 'A leitura do Lantern',
     identical: 'Texto, hora e doente iguais nos dois ficheiros.',
     rulesOnly: (rule) => `Nenhuma IA avaliou este par. Regras do Lantern: ${rule}.`,
     relayed: (by, x) => `${by || 'Alguém'} escreveu esta correção por indicação de ${x}. ${x} tem de a confirmar: altera um registo de ${x}.`,
@@ -241,6 +250,13 @@ const M = msgs(
     },
     controlled: (drug) =>
       `Estupefaciente (${drug}): quem registar estas doses deve confirmá-las primeiro no registo de estupefacientes do serviço.`,
+    disputedOffer: ' Um modelo maior, na nuvem, pode dar uma segunda opinião, só sobre estas linhas fictícias do simulacro.',
+    queueSummary: (done, total) => `Linhas por rever, ${done} de ${total} decididas`,
+    status: { open: 'por decidir', waiting: 'à espera de resposta', done: 'decidida' },
+    censusShort: 'lista de doentes',
+    nightLine: (drug) => `A hora de cada linha com ${drug}, ao longo da noite`,
+    untimed: (n) => `${n} ${n === 1 ? 'linha não tem hora escrita, por isso não está' : 'linhas não têm hora escrita, por isso não estão'} na linha do tempo.`,
+    rowsAt: (n, time) => `${n} linhas às ${time}`,
   },
 );
 
@@ -250,11 +266,15 @@ export function useLedgerEntries(): LedgerEntry[] {
   return es;
 }
 
+type QueueState = 'open' | 'waiting' | 'done';
+
 export default function Review({ onWorklist }: { onWorklist: () => void }) {
   const s = useSession();
   const t = useT(M);
   const session = s.session!;
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const pane = useRef<HTMLElement>(null);
   const items = s.items;
   const active = items.find((i) => i.id === activeId) ?? items.find((i) => !isDecided(i, session.decisions)) ?? items[0];
   const undecided = items.filter((i) => !isDecided(i, session.decisions));
@@ -276,107 +296,125 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [active, items]);
 
+  // a newly opened item starts at its top, even if the last one was scrolled
+  const shown = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (shown.current !== undefined && shown.current !== active?.id && pane.current && pane.current.getBoundingClientRect().top < 0)
+      pane.current.scrollIntoView({ block: 'start' });
+    shown.current = active?.id;
+  }, [active?.id]);
+
   return (
     <div className="flex min-h-full flex-col">
-      <ReviewHeader onWorklist={onWorklist} />
-      {session.kind === 'drill' && s.escalated.size > 0 && !session.cloudAsked && <CloudOffer />}
-      <div className="mx-auto grid w-full max-w-[1400px] flex-1 gap-0 lg:grid-cols-[340px_1fr]">
-        <Queue items={items} active={active} onPick={setActiveId} />
-        <main className="min-w-0 border-rule px-5 py-6 sm:px-8 lg:border-l">
-          {active ? <ItemView key={active.id} item={active} onDone={() => next(active)} /> : <p>{t.nothing}</p>}
-          {undecided.length === 0 && (
-            <div className="mt-10">
-              <Notice tone="scrub">
-                {t.allDecided}{' '}
-                <Button className="ml-2" onClick={onWorklist}>
-                  {t.openWorklist}
-                </Button>
-              </Notice>
+      <AppBar title={sessionTitle(session.kind)} steps={<Steps current="review" onGo={{ worklist: onWorklist }} />}>
+        <Tally kind={session.kind} />
+      </AppBar>
+      <div className="mx-auto grid w-full max-w-[1720px] flex-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
+        <div>
+          <button
+            type="button"
+            aria-expanded={queueOpen}
+            onClick={() => setQueueOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 border-b border-rule px-4 py-3 text-left text-[16px] font-semibold sm:px-6 lg:hidden"
+          >
+            {t.queueSummary(items.length - undecided.length, items.length)}
+            <ChevronDown size={20} className={`shrink-0 transition-transform ${queueOpen ? 'rotate-180' : ''}`} aria-hidden />
+          </button>
+          <Queue
+            items={items}
+            active={active}
+            open={queueOpen}
+            onPick={(id) => {
+              setActiveId(id);
+              setQueueOpen(false);
+            }}
+          />
+        </div>
+        <main ref={pane} className="@container flex min-w-0 scroll-mt-[60px] flex-col border-rule bg-sheet lg:border-l">
+          {undecided.length === 0 && items.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-gutter px-4 py-3 sm:px-8">
+              <p className="flex items-center gap-2 font-semibold">
+                <Check size={20} strokeWidth={2.5} aria-hidden /> {t.allDecided}
+              </p>
+              <Button onClick={onWorklist}>{t.openWorklist}</Button>
             </div>
           )}
+          {session.kind === 'drill' && s.escalated.size > 0 && !session.cloudAsked && <CloudOffer />}
+          {active ? <ItemView key={active.id} item={active} onDone={() => next(active)} /> : <p className="px-4 py-6 sm:px-8">{t.nothing}</p>}
         </main>
       </div>
     </div>
   );
 }
 
-function ReviewHeader({ onWorklist }: { onWorklist: () => void }) {
-  const s = useSession();
-  const t = useT(M);
-  const session = s.session!;
-  const ledger = useLedgerEntries();
-  const cloudCalls = ledger.filter((e) => e.inferenceSource === 'in_cloud');
-  const sentRows = new Set(cloudCalls.flatMap((e) => e.outgoingRefs.filter((r) => r.includes(':')))).size;
-  const deviceCalls = ledger.filter((e) => e.inferenceSource === 'on_device').length;
-  return (
-    <header className="sticky top-0 z-20 border-b border-rule bg-paper">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-3 sm:px-8">
-        <div className="flex items-center gap-2">
-          <LanternMark />
-          <span className="font-semibold">Lantern</span>
-          <span className="ml-2 text-ink-soft">{sessionTitle(session.kind)}</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <Meter done={s.decidedCount} total={session.acts.length} />
-          <span className="text-sm text-ink-soft" title={t.countedFrom}>
-            {session.kind === 'import'
-              ? t.sentNone
-              : deviceCalls === 0 && cloudCalls.length > 0
-                ? t.cloudOnly(sentRows)
-                : t.deviceCalls(deviceCalls, cloudCalls.length ? sentRows : null)}
-          </span>
-          <Button tone="secondary" onClick={onWorklist}>
-            {t.worklist}
-          </Button>
-          <LangToggle />
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function Queue({ items, active, onPick }: { items: ReviewItem[]; active?: ReviewItem; onPick: (id: string) => void }) {
+function Queue({ items, active, open, onPick }: { items: ReviewItem[]; active?: ReviewItem; open: boolean; onPick: (id: string) => void }) {
   const s = useSession();
   const session = s.session!;
   const t = useT(M);
   const groups = GROUP_ORDER.map((g) => ({ g, list: items.filter((i) => i.group === g) })).filter((x) => x.list.length);
+  const current = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    current.current?.scrollIntoView({ block: 'nearest' });
+  }, [active?.id]);
+  // a question sent to a nurse is a decision that is still waiting: it never gets the tick
+  const stateOf = (i: ReviewItem): QueueState =>
+    i.actIds.some((id) => session.decisions[id]?.kind === 'unresolved') || i.identity.some((x) => session.identityDecisions[x.id] === 'ask' && !isDecided(i, session.decisions))
+      ? 'waiting'
+      : isDecided(i, session.decisions)
+        ? 'done'
+        : 'open';
   return (
-    <nav aria-label={t.queue} className="border-b border-rule px-5 py-6 sm:px-8 lg:sticky lg:top-[57px] lg:h-[calc(100vh-57px)] lg:overflow-y-auto lg:border-b-0 lg:px-5">
-      <p className="mb-4 text-sm text-ink-soft">{t.queueHint}</p>
+    <nav
+      aria-label={t.queue}
+      className={`${open ? 'block' : 'hidden'} border-b border-rule px-3 py-5 sm:px-5 lg:sticky lg:top-[60px] lg:block lg:h-[calc(100vh-60px)] lg:overflow-y-auto lg:border-b-0 lg:px-4`}
+    >
+      <div className="mb-5 px-2">
+        <Meter done={s.decidedCount} total={session.acts.length} />
+        <p className="mt-2 hidden text-[14px] text-ink-faint lg:block">{t.queueHint}</p>
+      </div>
       {groups.map(({ g, list }) => {
         const done = list.filter((i) => isDecided(i, session.decisions)).length;
         return (
-          <section key={g} className="mb-6">
-            <div className="mb-1 flex items-baseline justify-between gap-2">
-              <h2 className="font-semibold">{groupCopy(g).title}</h2>
-              <span className="text-sm tabular-nums text-ink-faint">
+          <section key={g} className="mb-5">
+            <div className="mb-1 flex items-baseline justify-between gap-2 px-2">
+              <h2 className="text-[16px] font-semibold">{groupCopy(g).title}</h2>
+              <span className="text-[14px] tabular-nums text-ink-soft">
                 {done}/{list.length}
               </span>
             </div>
             {g === 'copies' && done < list.length && (
-              <button className="mb-1 text-sm text-ballpoint underline underline-offset-2" onClick={() => s.acceptGroup('copies')}>
+              <button className="mb-1 px-2 text-left text-[15px] text-ballpoint underline underline-offset-2" onClick={() => s.acceptGroup('copies')}>
                 {t.keepCopies(list.length - done)}
               </button>
             )}
             <ul>
               {list.map((i) => {
                 const act = s.actsById.get(i.a ?? i.act ?? '')!;
-                const decided = isDecided(i, session.decisions);
+                const state = stateOf(i);
                 const isActive = active?.id === i.id;
                 return (
                   <li key={i.id}>
                     <button
+                      ref={isActive ? current : undefined}
                       onClick={() => onPick(i.id)}
                       aria-current={isActive}
-                      className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-[15px] ${isActive ? 'bg-sheet shadow-[inset_3px_0_0_var(--color-ink)]' : 'hover:bg-sheet/70'}`}
+                      data-state={state}
+                      className={`grid w-full grid-cols-[20px_minmax(0,1fr)] items-start gap-2.5 rounded-[4px] px-2 py-1.5 text-left ${
+                        isActive ? 'bg-sheet shadow-[inset_4px_0_0_var(--color-night)]' : 'hover:bg-sheet/70'
+                      }`}
                     >
-                      <span className={`mt-[3px] grid h-4 w-4 shrink-0 place-items-center rounded-full border ${decided ? 'border-scrub bg-scrub text-white' : 'border-rule-strong'}`}>
-                        {decided && <Check size={11} strokeWidth={3} />}
+                      <span
+                        className={`mt-[3px] grid h-[18px] w-[18px] place-items-center rounded-full text-[12px] font-extrabold leading-none transition-colors duration-150 ${
+                          state === 'done' ? 'bg-night text-white' : state === 'waiting' ? 'border-2 border-pen text-pen' : 'border-2 border-rule-strong'
+                        }`}
+                      >
+                        {state === 'done' ? <Check size={12} strokeWidth={3.5} aria-hidden /> : state === 'waiting' ? <span aria-hidden>?</span> : null}
+                        <span className="sr-only">{t.status[state]}</span>
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate font-semibold">{act.patientName || t.bed(act.bed)}</span>
-                        <span className="block truncate text-sm text-ink-soft">
-                          {act.eventTime || t.noTime} {act.actText}
+                        <span className="block truncate text-[16px] font-semibold leading-snug">{act.patientName || t.bed(act.bed)}</span>
+                        <span className="block truncate text-[14px] text-ink-soft">
+                          <span className="tabular-nums">{act.eventTime || t.noTime}</span> {act.actText}
                         </span>
                       </span>
                     </button>
@@ -394,6 +432,7 @@ function Queue({ items, active, onPick }: { items: ReviewItem[]; active?: Review
 function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
   const s = useSession();
   const t = useT(M);
+  const noTime = useNoTime();
   const session = s.session!;
   const a = s.actsById.get(item.a ?? item.act ?? '')!;
   const b = item.b ? s.actsById.get(item.b) : undefined;
@@ -411,36 +450,63 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
     onDone();
   };
 
+  // The stack: when the census can settle who the patient is, it goes on top and the rows are lit against it.
+  const identity = item.identity.length > 0;
+  const census = item.identity.find((i) => i.suggestion)?.suggestion;
+  const censusFile = session.files.find((f) => f.role === 'census');
+  const censusLabel = censusFile ? versionName(censusFile, session.kind) : capital(t.censusShort);
+  const censusWho = census ? `${census.patientName} ${census.patientId}` : undefined;
+  const top: StackRow[] = census
+    ? [
+        censusRow(session.files, census.patientId, censusLabel, t.censusShort) ?? {
+          key: 'census',
+          label: censusLabel,
+          short: t.censusShort,
+          fileName: censusFile?.name ?? '',
+          sheetRow: 0,
+          cells: { patient: { value: censusWho! } },
+        },
+      ]
+    : [];
+  const rows: StackRow[] = [
+    ...top,
+    actRow(a, b, fileOf(a), versionName(fileOf(a)!, session.kind), { identity, census: censusWho, noTime }),
+    ...(b ? [actRow(b, a, fileOf(b), versionName(fileOf(b)!, session.kind), { identity, census: censusWho, noTime })] : []),
+  ];
+
   return (
-    <article aria-labelledby="item-title">
-      <p className="text-sm text-ink-soft">
-        {copy.title}. {copy.hint}.
-      </p>
-      <div id="item-title" className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <PatientLine act={a} override={override} />
-        {highAlert && (
-          <span className="rounded-sm border border-pen/50 px-1.5 py-0.5 text-[13px] font-semibold text-pen">{t.highAlert}</span>
-        )}
+    <article aria-labelledby="item-title" className="flex flex-1 flex-col">
+      <div className="flex-1 px-4 pb-8 pt-5 sm:px-8 sm:pt-6">
+        <p className="text-[16px] text-ink-soft">
+          <span className="font-semibold text-ink">{copy.title}.</span> {copy.hint}.
+        </p>
+        <div id="item-title" className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <PatientLine act={a} override={override} />
+          {highAlert && (
+            <span className="inline-flex items-center gap-1.5 rounded-[4px] border border-ink px-2 py-0.5 text-[15px] font-semibold">
+              <TriangleAlert size={16} aria-hidden /> {t.highAlert}
+            </span>
+          )}
+        </div>
+
+        {item.identity.map((issue) => (
+          <IdentityBox key={issue.id} issue={issue} act={a} />
+        ))}
+
+        <div className="mt-5">
+          <Stack rows={rows} />
+        </div>
+
+        <MarginNotes item={item} candidate={candidate} a={a} b={b} />
+        <SameDrugStrip focus={b ? [a, b] : [a]} />
       </div>
 
-      {item.identity.map((issue) => (
-        <IdentityBox key={issue.id} issue={issue} act={a} />
-      ))}
-
-      <div className={`mt-6 flex flex-col gap-5 ${b ? 'xl:flex-row' : ''}`}>
-        <Slip act={a} other={b} file={fileOf(a)} label={versionName(fileOf(a)!, session.kind)} identity={item.identity.length > 0} />
-        {b && <Slip act={b} other={a} file={fileOf(b)} label={versionName(fileOf(b)!, session.kind)} identity={item.identity.length > 0} />}
-      </div>
-
-      <MarginNotes item={item} candidate={candidate} a={a} b={b} />
-      <SameDrugStrip focus={b ? [a, b] : [a]} />
-
-      <div className="mt-7 border-t border-rule pt-5">
+      <div className="border-t border-rule-strong bg-sheet px-4 py-4 sm:px-8 lg:sticky lg:bottom-0">
         {decided && <CurrentDecision item={item} />}
         {identityOpen.length > 0 ? (
-          <p className="text-[15px] text-pen">{t.identityFirst}</p>
+          <p className="font-semibold text-pen">{t.identityFirst}</p>
         ) : identityAsked.length > 0 ? (
-          <p className="text-[15px] text-pen">{t.waitingRows(ownerOf(b ?? a))}</p>
+          <p className="max-w-[76ch] text-pen">{t.waitingRows(ownerOf(b ?? a))}</p>
         ) : (
           <Actions item={item} a={a} b={b} decided={decided} onDecide={decide} />
         )}
@@ -454,49 +520,76 @@ const capital = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 /**
  * Every row for the same patient that names the same medicine, across both files, with where each
  * one stands now. A re-typed copy with no time, a dose missing from the later file and an "MS 10mg"
- * line all become visible next to each other before the reviewer decides.
+ * line all become visible next to each other before the reviewer decides. The night line above the
+ * rows places each timed row in the night, so two doses hours apart do not read as one written twice;
+ * a row with no time is never placed on it.
  */
 function SameDrugStrip({ focus }: { focus: Act[] }) {
   const s = useSession();
   const t = useT(M);
   const session = s.session!;
   const strips = sameDrugRows(session.acts, focus);
+  const range = useMemo(() => {
+    const timed = session.acts.map((x) => x.timeMinutes).filter((m): m is number => m !== null);
+    if (!timed.length) return { from: 540, to: 1260 }; // 21:00 to 09:00
+    return { from: Math.floor((Math.min(...timed) - 30) / 60) * 60, to: Math.ceil((Math.max(...timed) + 30) / 60) * 60 };
+  }, [session.acts]);
   if (!strips.length) return null;
-  const inFocus = new Set(focus.map((a) => a.id));
+  const inFocus = new Set(focus.map((x) => x.id));
+  const note = (name: string) => (
+    <p className="mt-3 flex max-w-[76ch] items-start gap-2 text-[16px] font-semibold">
+      <TriangleAlert size={18} className="mt-[3px] shrink-0" aria-hidden /> {t.controlled(name)}
+    </p>
+  );
   return (
     <>
       {strips.map(({ key, controlled, rows }) => {
         const name = drugName(key);
-        if (rows.length < 2)
-          return controlled ? (
-            <p key={key} className="mt-5 max-w-[72ch] text-[15px] font-semibold text-pen">
-              {t.controlled(name)}
-            </p>
-          ) : null;
+        // the strip earns its place only when it shows a row the stack above does not
+        if (rows.length < 2 || rows.every((r) => inFocus.has(r.act.id))) return controlled ? <Fragment key={key}>{note(name)}</Fragment> : null;
+        const marks: NightMark[] = [];
+        for (const { act, sure } of rows) {
+          if (act.timeMinutes === null) continue;
+          const m = marks.find((x) => x.at === act.timeMinutes);
+          if (m) {
+            m.count = (m.count ?? 1) + 1;
+            m.focus ||= inFocus.has(act.id);
+            m.unsure &&= !sure;
+            m.title = t.rowsAt(m.count, act.eventTime);
+          } else marks.push({ at: act.timeMinutes, label: act.eventTime, count: 1, focus: inFocus.has(act.id), unsure: !sure, title: act.actText });
+        }
+        const untimed = rows.filter((r) => r.act.timeMinutes === null).length;
         return (
-          <section key={key} aria-label={t.strip(capital(name))} className="mt-6">
-            <h3 className="font-semibold">{t.strip(capital(name))}</h3>
-            <p className="text-sm text-ink-faint">{t.stripHint}</p>
-            <div className="mt-2 overflow-x-auto rounded-[3px] border border-rule-strong bg-sheet">
-              <table className="w-full min-w-[560px] border-collapse text-left text-[15px]">
+          <section key={key} aria-label={t.strip(capital(name))} className="mt-7">
+            <h3 className="text-[17px] font-semibold">{t.strip(capital(name))}</h3>
+            {marks.length > 0 && (
+              <div className="mt-2">
+                <NightLine from={range.from} to={range.to} marks={marks} label={t.nightLine(name)} />
+              </div>
+            )}
+            {untimed > 0 && <p className="mt-1 text-[15px] text-ink-soft">{t.untimed(untimed)}</p>}
+            <div className="mt-3 overflow-x-auto border border-rule-strong bg-sheet">
+              <table className="w-full min-w-[600px] border-collapse text-left text-[16px]">
                 <tbody>
                   {rows.map(({ act, sure }) => {
                     const d = session.decisions[act.id];
                     const status = doseStatus(d);
                     const mine = inFocus.has(act.id);
                     return (
-                      <tr key={act.id} className={`border-b border-rule last:border-b-0 ${mine ? 'bg-marker/25 shadow-[inset_3px_0_0_var(--color-ink)]' : ''}`}>
-                        <td className="w-[5.5rem] px-3 py-2 align-top font-mono tabular-nums">{act.eventTime || <span className="text-ink-faint">{t.noTime}</span>}</td>
-                        <td className="px-3 py-2 align-top">
-                          <span className="font-mono">{act.actText}</span>
-                          {act.notes && <span className="block text-sm text-ink-soft">{act.notes}</span>}
-                          {!sure && <span className="block text-sm text-pen">{t.maybe(name)}</span>}
-                        </td>
-                        <td className="w-[11rem] px-3 py-2 align-top text-sm text-ink-soft">
+                      <tr key={act.id} className={`border-b border-rule last:border-b-0 ${mine ? 'shadow-[inset_4px_0_0_var(--color-night)]' : ''}`}>
+                        <th scope="row" className="w-[10.5rem] border-r border-rule-strong bg-gutter px-3 py-2 align-top text-[14px] font-normal text-ink-soft">
                           {rowRef(act)}
                           {mine && <span className="block font-semibold text-ink">{t.inThis}</span>}
+                        </th>
+                        <td className="w-[5.25rem] px-3 py-2 align-top font-mono tabular-nums">
+                          {act.eventTime || <span className="font-sans text-[15px] text-ink-faint">{t.noTime}</span>}
                         </td>
-                        <td className={`w-[10rem] px-3 py-2 align-top text-sm ${status === 'open' ? 'text-ink-faint' : status === 'listed' ? 'text-scrub' : 'text-ink-soft'}`}>
+                        <td className="border-l border-rule px-3 py-2 align-top">
+                          <span className="font-mono">{act.actText}</span>
+                          {act.notes && <span className="block font-mono text-[15px] text-ink-soft">{act.notes}</span>}
+                          {!sure && <span className="block text-[15px] text-pen">{t.maybe(name)}</span>}
+                        </td>
+                        <td className={`w-[11rem] border-l border-rule px-3 py-2 align-top text-[15px] ${status === 'open' ? 'text-ink-faint' : status === 'waiting' ? 'text-pen' : status === 'listed' ? 'font-semibold text-ink' : 'text-ink-soft'}`}>
                           {d?.kind === 'unresolved' ? t.waiting(d.owner) : t.dose[status]}
                         </td>
                       </tr>
@@ -505,7 +598,8 @@ function SameDrugStrip({ focus }: { focus: Act[] }) {
                 </tbody>
               </table>
             </div>
-            {controlled && <p className="mt-2 max-w-[72ch] text-[15px] font-semibold text-pen">{t.controlled(name)}</p>}
+            <p className="mt-1 text-[14px] text-ink-faint">{t.stripHint}</p>
+            {controlled && note(name)}
           </section>
         );
       })}
@@ -538,19 +632,21 @@ function IdentityBox({ issue, act }: { issue: IdentityIssue; act: Act }) {
       )}
     </div>
   );
+  const settled = choice === 'census' || choice === 'as-written';
+  // the red rule at the left edge means "this needs a decision or an answer"; once settled it turns to ink
   return (
-    <div className="mt-5 rounded-md border border-pen/40 bg-pen-wash px-4 py-3">
-      <p className="font-semibold text-pen">{title}</p>
-      <p className="mt-0.5 text-[15px]">{identityDetail(issue)}</p>
+    <div className={`mt-5 border-l-4 py-0.5 pl-4 ${settled ? 'border-night' : 'border-pen'}`}>
+      <p className={`text-[19px] font-semibold leading-snug ${settled ? '' : 'text-pen'}`}>{title}</p>
+      <p className="mt-0.5 max-w-[80ch]">{identityDetail(issue)}</p>
       {choice === 'ask' ? (
         <>
-          <p className="mt-2 text-sm text-pen">{t.waitingIdentity(ownerOf(act))}</p>
+          <p className="mt-2 max-w-[80ch] text-[16px] text-pen">{t.waitingIdentity(ownerOf(act))}</p>
           <AnswerBox refId={`identity:${issue.id}`} owner={ownerOf(act)} />
           {s.session!.answers?.[`identity:${issue.id}`] && issue.kind !== 'no-identity' && settle}
         </>
       ) : choice ? (
-        <p className="mt-2 flex items-center gap-1.5 text-sm text-scrub">
-          <Check size={15} /> {t.settled(choice === 'census')}
+        <p className="mt-1.5 flex items-center gap-1.5 font-semibold">
+          <Check size={18} strokeWidth={2.5} aria-hidden /> {t.settled(choice === 'census')}
         </p>
       ) : (
         settle
@@ -569,6 +665,21 @@ function numberDiff(a: Act, b: Act, t: (typeof M)['en']): string {
   return [onlyA.length && t.onlyEarlier(onlyA.join(', ')), onlyB.length && t.onlyLater(onlyB.join(', '))].filter(Boolean).join('; ');
 }
 
+/** One line of the trail: where it ran (or nothing, for a plain remark), then what was read. */
+function TrailLine({ tag, tone = '', flat = false, children }: { tag?: ReactNode; tone?: string; flat?: boolean; children: ReactNode }) {
+  if (flat) return <li className={`max-w-[80ch] ${tone}`}>{children}</li>;
+  return (
+    <li className={`grid gap-x-3 gap-y-1 @2xl:grid-cols-[10.25rem_minmax(0,1fr)] ${tone}`}>
+      <span className={tag ? '' : 'hidden @2xl:block'}>{tag}</span>
+      <span className="max-w-[80ch]">{children}</span>
+    </li>
+  );
+}
+
+/**
+ * Why Lantern suggests this, as a trail in the order things were decided: the first opinion, the
+ * second opinion if one was asked for, then Lantern's rules, which have the last word.
+ */
 function MarginNotes({ item, candidate, a, b }: { item: ReviewItem; candidate?: MatchCandidate; a: Act; b?: Act }) {
   const s = useSession();
   const t = useT(M);
@@ -579,18 +690,17 @@ function MarginNotes({ item, candidate, a, b }: { item: ReviewItem; candidate?: 
     const g = guard(j.relation, a, b);
     const who = j.source === 'on_device' ? t.whoDevice : role === 'second' ? t.whoSecond : t.whoCloud;
     return (
-      <li className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
-        <RanOn source={j.source} />
-        <span>
+      <>
+        <TrailLine tag={<Route source={j.source} />}>
           {who} {t.reads} <strong className="font-semibold">{t.relation[j.relation]}</strong>
           {j.evidence && <span className="text-ink-soft">{t.because(j.evidence)}</span>}.
-          {g.relation !== j.relation && (
-            <span className="mt-1 block text-ink-soft">
-              <RanOn source="rule" /> {t.overrides(g.rule ?? '')}
-            </span>
-          )}
-        </span>
-      </li>
+        </TrailLine>
+        {g.relation !== j.relation && (
+          <TrailLine tag={<Route source="rule" />}>
+            <strong className="font-semibold">{t.overrides(g.rule ?? '')}</strong>
+          </TrailLine>
+        )}
+      </>
     );
   };
   const rule = b && !candidate?.exact && !candidate?.local && !candidate?.cloud ? ruleVerdict(a, b) : null;
@@ -598,41 +708,43 @@ function MarginNotes({ item, candidate, a, b }: { item: ReviewItem; candidate?: 
   const missingTime = b && (!a.eventTime || !b.eventTime) ? t.noTimeCopy(!a.eventTime) : null;
   const because = item.proposals.map((p) => p.because).filter((x, i, arr) => x && arr.indexOf(x) === i);
   const differs = b && reasons?.includes('numbers-differ') ? numberDiff(a, b, t) : '';
+  // with no tagged line above them, the plain remarks start at the left edge
+  const flat = !(candidate?.exact || (b && (candidate?.local || candidate?.cloud)) || rule || relayed);
   return (
-    <aside className="mt-6" aria-label={t.why}>
-      <ul className="space-y-2.5 text-[15px]">
-        {candidate?.exact && (
-          <li className="flex items-start gap-3">
-            <RanOn source="rule" /> <span>{t.identical}</span>
-          </li>
-        )}
+    <aside className="mt-6" aria-labelledby="why">
+      <h3 id="why" className="text-[15px] text-ink-soft">
+        {t.why}
+      </h3>
+      <ul className="mt-2 space-y-2">
+        {candidate?.exact && <TrailLine tag={<Route source="rule" />}>{t.identical}</TrailLine>}
         {note(candidate?.local, 'first')}
         {note(candidate?.cloud, 'second')}
-        {rule && (
-          <li className="flex items-start gap-3">
-            <RanOn source="rule" /> <span>{t.rulesOnly(rule.rule)}</span>
-          </li>
-        )}
+        {rule && <TrailLine tag={<Route source="rule" />}>{t.rulesOnly(rule.rule)}</TrailLine>}
         {relayed && (
-          <li className="flex items-start gap-3 text-pen">
-            <RanOn source="rule" />
-            <span>{t.relayed(b!.documentedBy, relayed)}</span>
-          </li>
+          <TrailLine tag={<Route source="rule" />} tone="text-pen">
+            {t.relayed(b!.documentedBy, relayed)}
+          </TrailLine>
         )}
-        {missingTime && <li className="text-pen">{missingTime}</li>}
+        {missingTime && (
+          <TrailLine flat={flat} tone="text-pen">
+            {missingTime}
+          </TrailLine>
+        )}
         {item.undecidedByModel && !rule ? (
-          <li className="text-ink-soft">{t.undecidable}</li>
+          <TrailLine flat={flat} tone="text-ink-soft">
+            {t.undecidable}
+          </TrailLine>
         ) : (
-          because.map((t) => (
-            <li key={t} className="text-ink-soft">
-              {t}
-            </li>
+          because.map((x) => (
+            <TrailLine key={x} flat={flat} tone="text-ink-soft">
+              {x}
+            </TrailLine>
           ))
         )}
         {reasons && !candidate?.cloud && !item.undecidedByModel && !(rule && reasons.every((r) => r === 'local-unavailable')) && (
-          <li className="text-ink-soft">
+          <TrailLine flat={flat} tone="text-ink-soft">
             {t.disputed(reasons.map((r) => (r === 'numbers-differ' && differs ? t.numbersDiffer(differs) : (t.reason[r] ?? r))).join('; '))}
-          </li>
+          </TrailLine>
         )}
       </ul>
     </aside>
@@ -660,13 +772,14 @@ function CurrentDecision({ item }: { item: ReviewItem }) {
                 : t.leftOut(x.reason),
     )
     .filter(Boolean);
+  const waiting = d.some((x) => x?.kind === 'unresolved');
   return (
-    <p className="mb-3 flex items-center gap-2 text-[15px] text-scrub">
-      <Check size={16} /> {t.decided(item.kind === 'pair' ? t.decidedPair(text[0] ?? '', text[1] ?? '') : t.decidedOne(text[0] ?? ''))}
+    <p className={`mb-3 flex items-start gap-2 ${waiting ? 'text-pen' : 'font-semibold'}`}>
+      {!waiting && <Check size={19} strokeWidth={2.5} className="mt-[3px] shrink-0" aria-hidden />}
+      {t.decided(item.kind === 'pair' ? t.decidedPair(text[0] ?? '', text[1] ?? '') : t.decidedOne(text[0] ?? ''))}
     </p>
   );
 }
-
 /** Words that only one row has (e.g. "RR 24"): what a "keep one" would drop. */
 function onlyIn(x: Act, y: Act): string[] {
   const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9.]+/g, '');
@@ -737,13 +850,13 @@ function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; 
           <AnswerBox refId={item.id} owner={(decisions[item.actIds[0]!] as { owner?: string })?.owner ?? ownerOf(a)} />
         </div>
       )}
-      {drops && <p className="mb-3 text-[15px] text-pen">{drops}</p>}
+      {drops && <p className="mb-3 max-w-[80ch] text-pen">{drops}</p>}
       <div className="flex flex-wrap items-center gap-2.5">
         {options.map((o) => {
           const pressed = decided && current === JSON.stringify(o.d);
           if (confirming === o.label)
             return (
-              <span key={o.label} className="flex flex-wrap items-center gap-2 rounded-md border border-pen px-3 py-1.5 text-[15px] text-pen">
+              <span key={o.label} className="flex w-full flex-wrap items-center gap-2 border-l-4 border-pen py-1 pl-3 text-pen">
                 {o.confirm}
                 <Button tone="pen" onClick={() => onDecide(o.d, `${t.confirmed(o.label)} (${item.id})`)}>
                   {t.yesBoth}
@@ -760,14 +873,14 @@ function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; 
               onClick={() => (o.confirm && !pressed ? setConfirming(o.label) : onDecide(o.d, `${o.label} (${item.id})`))}
               aria-pressed={pressed}
             >
-              {pressed && <Check size={16} />}
+              {pressed && <Check size={17} strokeWidth={2.5} aria-hidden />}
               {o.label}
               {o.suggested && <span className="font-normal opacity-75">{t.suggested}</span>}
             </Button>
           );
         })}
-        <span className="ml-1 hidden items-center text-sm text-ink-faint sm:flex">
-          <ChevronRight size={14} /> {t.next}
+        <span className="ml-1 hidden items-center text-[14px] text-ink-faint sm:flex">
+          <ChevronRight size={15} aria-hidden /> {t.next}
         </span>
       </div>
     </div>
@@ -787,33 +900,32 @@ function CloudOffer() {
   });
   if (!open.length) return null;
   const n = open.length;
+  // Closed, it is one line. Open, it shows exactly what would leave this PC, and only then offers to send it.
   return (
-    <div className="border-b border-rule bg-ballpoint-wash/60">
-      <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-5 py-4 sm:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-[80ch] text-[15px]">
-            <strong className="font-semibold">{t.disputedTitle(n)}</strong>
-            {t.disputedText}
-          </p>
-          <div className="flex gap-2">
-            <Button tone="secondary" onClick={() => setShow((v) => !v)}>
-              {t.showSent(show)}
-            </Button>
-            <Button onClick={() => void s.askCloud()} disabled={!!s.busy}>
-              {t.askCloud}
-            </Button>
-          </div>
-        </div>
-        {show && (
-          <ol className="max-h-72 space-y-3 overflow-y-auto">
+    <div className="border-b border-ballpoint/25 bg-ballpoint-wash px-4 py-2.5 sm:px-8">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 @3xl:flex-nowrap">
+        <p className="max-w-[92ch] text-[16px] leading-snug">
+          <Route source="in_cloud" /> <strong className="ml-1 font-semibold">{t.disputedTitle(n)}</strong>
+          {show ? t.disputedText : `.${t.disputedOffer}`}
+        </p>
+        <Button tone="secondary" className="shrink-0" onClick={() => setShow((v) => !v)} aria-expanded={show}>
+          {t.showSent(show)}
+        </Button>
+      </div>
+      {show && (
+        <>
+          <ol className="mt-3 max-h-72 space-y-3 overflow-y-auto">
             {preview.map((p) => (
-              <li key={p.candidateId} className="rounded-[3px] border border-rule bg-sheet p-3">
-                <pre className="whitespace-pre-wrap font-mono text-[13px] leading-relaxed text-ink-soft">{p.prompt}</pre>
+              <li key={p.candidateId} className="border border-rule bg-sheet p-3">
+                <pre className="whitespace-pre-wrap font-mono text-[14px] leading-relaxed text-ink-soft">{p.prompt}</pre>
               </li>
             ))}
           </ol>
-        )}
-      </div>
+          <Button className="my-3" onClick={() => void s.askCloud()} disabled={!!s.busy}>
+            {t.askCloud}
+          </Button>
+        </>
+      )}
     </div>
   );
 }

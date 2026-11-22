@@ -1,3 +1,5 @@
+import { ct } from '../core/i18n';
+import { cellRef } from '../core/parse';
 import type { Act, SourceFile } from '../core/types';
 import { msgs } from '../i18n/lang';
 import { useT } from '../i18n/react';
@@ -5,76 +7,222 @@ import { Diff } from './kit';
 
 const M = msgs(
   {
-    bed: 'Bed',
-    patient: 'Patient',
-    time: 'Time',
+    field: { bed: 'Bed', patient: 'Patient', time: 'Time', what: 'What was done', notes: 'Comments', by: 'By' },
+    byShort: 'By',
+    source: 'Source',
     noTime: '(no time written)',
-    what: 'What was done',
-    comments: 'Comments',
-    by: 'By',
-    row: (file: string, row: number) => `${file}, row ${row}`,
+    row: (n: number) => `row ${n}`,
+    fileRow: (file: string, n: number) => `${file}, row ${n}`,
+    notInSource: 'not in this file',
     noName: 'No name written',
     bedN: (b: string) => `bed ${b}`,
+    caption: 'The rows as typed, one above the other',
   },
   {
-    bed: 'Cama',
-    patient: 'Doente',
-    time: 'Hora',
+    field: { bed: 'Cama', patient: 'Doente', time: 'Hora', what: 'O que foi feito', notes: 'Observações', by: 'Registado por' },
+    byShort: 'Por',
+    source: 'Origem',
     noTime: '(sem hora escrita)',
-    what: 'O que foi feito',
-    comments: 'Observações',
-    by: 'Registado por',
-    row: (file, row) => `${file}, linha ${row}`,
+    row: (n) => `linha ${n}`,
+    fileRow: (file, n) => `${file}, linha ${n}`,
+    notInSource: 'não consta deste ficheiro',
     noName: 'Sem nome escrito',
     bedN: (b) => `cama ${b}`,
+    caption: 'As linhas tal como foram escritas, umas por cima das outras',
   },
 );
 
+type Field = 'bed' | 'patient' | 'time' | 'what' | 'notes' | 'by';
+interface Cell {
+  value: string;
+  /** the sheet cell it was read from, e.g. "E21" */
+  ref?: string;
+  /** the text it is compared with: what is not in there gets the highlighter */
+  against?: string;
+  /** shown on separate lines (name over hospital number), so numbers sit above each other down the stack */
+  lines?: string[];
+}
+
+/** One source row in the stack: a row of a version of the log, or the census line it is checked against. */
+export interface StackRow {
+  key: string;
+  /** the name people know the file by: "Version 1, emailed 03:10" */
+  label: string;
+  /** the short name used where there is no room: "version 1" */
+  short: string;
+  fileName: string;
+  sheetRow: number;
+  cells: Partial<Record<Field, Cell>>;
+}
+
+const who = (name: string, id: string) => [name, id].filter(Boolean).join(' ');
+
+/** A row of the log as a stack row, compared with `other` (the other version) and, for the patient, with the census when there is one. */
+export function actRow(act: Act, other: Act | undefined, file: SourceFile | undefined, label: string, opts: { identity: boolean; census?: string; noTime: string }): StackRow {
+  const theirs = other ? `${other.actText} ${other.notes}` : undefined;
+  return {
+    key: act.id,
+    label,
+    short: ct().version(act.versionLabel),
+    fileName: file?.name ?? act.fileId,
+    sheetRow: act.row + 2,
+    cells: {
+      ...(opts.identity && {
+        bed: { value: act.bed, ref: act.evidence.bed?.ref, against: other?.bed },
+        patient: {
+          value: who(act.patientName, act.patientId),
+          lines: [act.patientName, act.patientId].filter(Boolean),
+          ref: act.evidence.patient?.ref,
+          against: opts.census ?? (other ? who(other.patientName, other.patientId) : undefined),
+        },
+      }),
+      time: { value: act.eventTime || opts.noTime, ref: act.evidence.time?.ref, against: other?.eventTime },
+      what: { value: act.actText, ref: act.evidence.act?.ref, against: theirs },
+      notes: { value: act.notes, ref: act.evidence.notes?.ref, against: theirs },
+      by: { value: act.documentedBy, ref: act.evidence.by?.ref },
+    },
+  };
+}
+
+const normId = (s: string) => s.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
 /**
- * An evidence slip: one row cut out of the improvised spreadsheet, exactly as typed,
- * with its file, version and sheet row. The highlighter marks what differs from the row
- * it is being compared with.
+ * The census line for a hospital number, read from the census file the reviewer opened, with the
+ * cells it came from. Null when the file or the line cannot be found (the caller then shows the
+ * identity the rules already matched, without cell addresses).
  */
-export function Slip({ act, other, file, label, identity = false }: { act: Act; other?: Act; file?: SourceFile; label: string; identity?: boolean }) {
+export function censusRow(files: SourceFile[], patientId: string, label: string, short: string): StackRow | null {
+  const file = files.find((f) => f.role === 'census');
+  if (!file) return null;
+  const col = (...fields: string[]) => file.mapping.find((c) => fields.includes(c.field))?.index;
+  const idCol = col('patient_id', 'patient');
+  if (idCol === undefined) return null;
+  const r = file.rows.findIndex((row) => normId(row[idCol] ?? '').includes(normId(patientId)) && normId(patientId).length > 0);
+  if (r < 0) return null;
+  const nameCol = col('patient_name');
+  const bedCol = col('bed');
+  const cell = (c: number | undefined) => (c === undefined ? '' : (file.rows[r]![c] ?? ''));
+  const refs = [nameCol, idCol].filter((c, i, a): c is number => c !== undefined && a.indexOf(c) === i).map((c) => cellRef(r, c));
+  return {
+    key: `census:${r}`,
+    label,
+    short,
+    fileName: file.name,
+    sheetRow: r + 2,
+    cells: {
+      ...(bedCol !== undefined && { bed: { value: cell(bedCol), ref: cellRef(r, bedCol) } }),
+      patient:
+        nameCol !== undefined && nameCol !== idCol
+          ? { value: who(cell(nameCol), cell(idCol)), lines: [cell(nameCol), cell(idCol)].filter(Boolean), ref: refs.join(' ') }
+          : { value: cell(idCol), ref: refs.join(' ') },
+    },
+  };
+}
+
+const WIDTH: Record<Field, string> = { bed: '4rem', patient: '12.5rem', time: '5rem', what: 'auto', notes: '36%', by: '4.25rem' };
+const ORDER: Field[] = ['bed', 'patient', 'time', 'what', 'notes', 'by'];
+
+/**
+ * The evidence stack: source rows exactly as typed, one above the other, so the same field sits
+ * directly above itself and what differs is what is left over. Every cell carries the address of the
+ * sheet cell it was read from. On a narrow pane it turns field-first (each field, then each source's
+ * value under it), so nothing scrolls sideways.
+ */
+export function Stack({ rows }: { rows: StackRow[] }) {
   const t = useT(M);
-  const who = [act.patientName, act.patientId].filter(Boolean).join(' ');
-  const cells: { head: string; ref?: string; value: string; against?: string; wide?: boolean }[] = [
-    // on identity problems, show the cells the name, number and bed were read from
-    ...(identity
-      ? [
-          { head: t.bed, ref: act.evidence.bed?.ref, value: act.bed, against: other?.bed },
-          { head: t.patient, ref: act.evidence.patient?.ref, value: who, against: other ? [other.patientName, other.patientId].filter(Boolean).join(' ') : undefined },
-        ]
-      : []),
-    { head: t.time, ref: act.evidence.time?.ref, value: act.eventTime || t.noTime, against: other?.eventTime },
-    { head: t.what, ref: act.evidence.act?.ref, value: act.actText, against: other ? `${other.actText} ${other.notes}` : undefined, wide: true },
-    ...(act.notes || other?.notes ? [{ head: t.comments, ref: act.evidence.notes?.ref, value: act.notes, against: other ? `${other.actText} ${other.notes}` : undefined, wide: true }] : []),
-    { head: t.by, ref: act.evidence.by?.ref, value: act.documentedBy },
-  ];
+  const fields = ORDER.filter((f) => rows.some((r) => r.cells[f]?.value));
+  const cellText = (c: Cell) => (
+    <span className="block font-mono text-[16px] leading-[1.45] tracking-[-0.015em] break-words">
+      {c.lines && c.lines.length > 1 ? (
+        c.lines.map((line, i) => (
+          <span key={i} className="block">
+            <Diff text={line} other={c.against} />
+          </span>
+        ))
+      ) : (
+        <Diff text={c.value} other={c.against} />
+      )}
+    </span>
+  );
   return (
-    <figure className="min-w-0 flex-1">
-      <figcaption className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-        <span className="font-semibold">{label}</span>
-        <span className="text-ink-faint">{t.row(file?.name ?? act.fileId, act.row + 2)}</span>
-      </figcaption>
-      <div className="overflow-hidden rounded-[3px] border border-rule-strong bg-sheet shadow-[0_1px_0_var(--color-rule)]">
-        <table className="w-full table-fixed border-collapse text-left">
-          <tbody>
-            {cells.map((c) => (
-              <tr key={c.head} className="border-b border-rule last:border-b-0">
-                <th scope="row" className="w-28 border-r border-rule bg-paper px-2.5 py-2 align-top text-[13px] font-normal text-ink-soft">
-                  {c.head}
-                  {c.ref && <span className="block text-[12px] text-ink-faint">{c.ref}</span>}
-                </th>
-                <td className="px-3 py-2 align-top font-mono text-[15px] leading-snug break-words">
-                  <Diff text={c.value} other={c.against} />
-                </td>
-              </tr>
+    <>
+      <table className="hidden w-full table-fixed border-collapse border border-rule-strong bg-sheet text-left @3xl:table">
+        <caption className="sr-only">{t.caption}</caption>
+        <colgroup>
+          <col style={{ width: '10rem' }} />
+          {fields.map((f) => (
+            <col key={f} style={{ width: f === 'notes' && fields.includes('patient') ? '22%' : WIDTH[f] }} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr className="border-b border-rule-strong bg-gutter text-[14px] text-ink-soft">
+            <th scope="col" className="px-3 py-1.5 font-normal">
+              <span className="sr-only">{t.source}</span>
+            </th>
+            {fields.map((f) => (
+              <th key={f} scope="col" className="border-l border-rule px-3 py-1.5 font-normal">
+                {f === 'by' ? t.byShort : t.field[f]}
+              </th>
             ))}
-          </tbody>
-        </table>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-b border-rule last:border-b-0">
+              <th scope="row" className="border-r border-rule-strong bg-gutter px-3 py-2 align-top font-normal" title={t.fileRow(r.fileName, r.sheetRow)}>
+                <span className="block text-[15px] font-semibold leading-snug text-ink">{r.label.replace(/-/g, '\u2011')}</span>
+                <span className="block text-[14px] tabular-nums text-ink-soft">{t.row(r.sheetRow)}</span>
+              </th>
+              {fields.map((f) => {
+                const c = r.cells[f];
+                if (!c)
+                  return (
+                    <td key={f} className="no-cell border-l border-rule">
+                      <span className="sr-only">{t.notInSource}</span>
+                    </td>
+                  );
+                return (
+                  <td key={f} className="border-l border-rule px-3 pb-2.5 pt-1.5 align-top">
+                    <span className="block h-[18px] text-[13px] leading-[18px] tabular-nums text-ink-faint">{c.ref}</span>
+                    {cellText(c)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="border border-rule-strong bg-sheet @3xl:hidden">
+        <ul className="border-b border-rule-strong bg-gutter px-3 py-2 text-[15px]">
+          {rows.map((r) => (
+            <li key={r.key}>
+              <span className="font-semibold">{r.label}</span> <span className="text-ink-soft">{t.fileRow(r.fileName, r.sheetRow)}</span>
+            </li>
+          ))}
+        </ul>
+        <dl>
+          {fields.map((f) => (
+            <div key={f} className="border-b border-rule last:border-b-0">
+              <dt className="bg-gutter/60 px-3 py-1 text-[14px] text-ink-soft">{t.field[f]}</dt>
+              {rows.map((r) => {
+                const c = r.cells[f];
+                if (!c) return null;
+                return (
+                  <dd key={r.key} className="grid grid-cols-[5.25rem_minmax(0,1fr)] gap-2 border-t border-rule px-3 py-1.5">
+                    <span className="pt-0.5 text-[13px] leading-tight text-ink-soft">
+                      {r.short}
+                      <span className="block tabular-nums text-ink-faint">{c.ref}</span>
+                    </span>
+                    {cellText(c)}
+                  </dd>
+                );
+              })}
+            </div>
+          ))}
+        </dl>
       </div>
-    </figure>
+    </>
   );
 }
 
@@ -83,10 +231,13 @@ export function PatientLine({ act, override }: { act: Act; override?: { patientN
   const name = override?.patientName ?? act.patientName;
   const id = override?.patientId ?? act.patientId;
   return (
-    <p className="text-[15px] text-ink-soft">
-      <span className="text-lg font-semibold text-ink">{name || t.noName}</span>
-      {id && <span className="ml-2">{id}</span>}
-      {act.bed && <span className="ml-2">{t.bedN(act.bed)}</span>}
+    <p className="flex flex-wrap items-baseline gap-x-3 text-[19px] text-ink-soft">
+      <span className="text-[28px] font-extrabold leading-tight tracking-[-0.01em] text-night">{name || t.noName}</span>
+      {id && <span className="tabular-nums">{id}</span>}
+      {act.bed && <span>{t.bedN(act.bed)}</span>}
     </p>
   );
 }
+
+/** "(no time written)" for a row with no time, in the current language. */
+export const useNoTime = () => useT(M).noTime;
