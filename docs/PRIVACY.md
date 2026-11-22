@@ -39,7 +39,7 @@ Enforcement in the code:
 
 - **App Check:** reCAPTCHA Enterprise and the App Check token exchange, only when a cloud call is made.
 - **Remote Config:** the config fetch, plus Firebase Installations, which Remote Config uses.
-- **Fonts:** Google Fonts (Atkinson Hyperlegible), cached by the service worker after the first visit.
+- **Fonts:** bundled with the app (Atkinson Hyperlegible Next and Mono, Literata). Loading Lantern makes no request to a font service.
 - **Hosting:** responses carry `Referrer-Policy: no-referrer`.
 
 ## How to verify it yourself

@@ -86,7 +86,7 @@ When a pair still gets no verdict, nothing is lost. It is escalated as `local-un
 ## State, offline, configuration
 
 - **Sessions:** Dexie database `lantern` (`src/app/store.ts`). Files, acts, candidates, proposals, decisions and the audit trail stay in this browser and are never synced.
-- **Offline:** vite-plugin-pwa precaches the app shell and the drill fixtures. Google Fonts are cached on first use. When a new service worker takes over, the page reloads once, so nobody keeps running an old build.
+- **Offline:** vite-plugin-pwa precaches the app shell, the bundled fonts and the drill fixtures. When a new service worker takes over, the page reloads once, so nobody keeps running an old build.
 - **App Check:** `ReCaptchaEnterpriseProvider` with `isTokenAutoRefreshEnabled: false` and `useLimitedUseAppCheckTokens: true`. A token is fetched per cloud call, never for on-device work.
 - **Remote Config:** fetched once per page load, with a 10-minute minimum interval and a 4 s timeout. The last activated values come from IndexedDB, and the in-code defaults apply when nothing has been fetched yet.
 - **Network watcher** (`src/ai/netwatch.ts`): a `fetch` wrapper plus a Resource Timing observer. It records requests to Google endpoints during each call, so the ledger reports the measured number of inference requests rather than a claim.
