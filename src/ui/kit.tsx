@@ -252,7 +252,8 @@ export function AppBar({ title, steps, children }: { title?: string; steps?: Rea
       <div className="mx-auto flex max-w-[1720px] flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 sm:gap-x-5 sm:px-6 lg:h-[60px] lg:flex-nowrap lg:gap-x-6 lg:py-0">
         <div className="flex items-center gap-2 text-night">
           <LanternMark size={26} />
-          <span className="text-[19px] font-extrabold tracking-[-0.01em]">Lantern</span>
+          {/* on a phone the mark stands for the name, so the steps and the language switch share one row in both languages */}
+          <span className="sr-only text-[19px] font-extrabold tracking-[-0.01em] min-[440px]:not-sr-only">Lantern</span>
           {title && <span className="ml-2 hidden whitespace-nowrap text-[15px] text-ink-soft sm:inline">{title}</span>}
         </div>
         <div className="shrink-0">{steps}</div>
