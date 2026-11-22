@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { findCandidates } from '../../src/core/candidates';
 import { resolveIdentities } from '../../src/core/identity';
 import { propose } from '../../src/core/reconcile';
-import { scoreDrill, type AnswerKey } from '../../src/core/score';
+import { keyIds, scoreDrill, type AnswerKey } from '../../src/core/score';
 import type { Act, Judgment, MatchCandidate } from '../../src/core/types';
 import { buildWorklist, worklistCsv } from '../../src/core/worklist';
 import { relayedFrom } from '../../src/core/clinical';
@@ -166,6 +166,26 @@ describe('Ward 7B drill', () => {
       const [x, y] = [byId.get(p.actId)!, byId.get(p.pairWith!)!];
       if (x.timeMinutes !== null && y.timeMinutes !== null) expect(Math.abs(x.timeMinutes - y.timeMinutes)).toBeLessThanOrEqual(30);
     }
+  });
+
+  it('a correction sent to the nurse is handled safely, not missed', async () => {
+    const { A, B, census, key } = await loadDrill();
+    const identity = resolveIdentities([...A, ...B], census);
+    const judge = oracle(key, [...A, ...B]);
+    const cands = findCandidates(A, B);
+    for (const c of cands) if (!c.exact) c.local = judge(c);
+    const proposals = propose({ earlier: A, later: B, candidates: cands, identity });
+    // the reviewer asks the nurse about every correction instead of applying it
+    const keyId = keyIds(key, [...A, ...B]);
+    const amendRows = new Set(key.expected.amendments.flatMap((m) => [m.v1, m.v2]));
+    const asked = proposals.map((p) =>
+      amendRows.has(keyId.get(p.actId) ?? '') ? { ...p, disposition: { kind: 'unresolved' as const, owner: 'JM', question: '?' } } : p,
+    );
+    const s = scoreDrill(key, [...A, ...B], asked, identity);
+    expect(s.amendmentsFound).toBe('0/3'); // the benchmark metric is unchanged: nothing was applied
+    expect(s.amendmentsWithNurse).toBe(3);
+    expect(s.actsLost).toEqual([]);
+    expect(s.withNurse).toHaveLength(3);
   });
 
   it('baseline "exact copies only" shows what a naive merge loses', async () => {

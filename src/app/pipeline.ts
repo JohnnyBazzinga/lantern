@@ -11,7 +11,7 @@ import { resolveIdentities } from '../core/identity';
 import { reconcileMapping, type FinalColumn, type ModelOpinion } from '../core/mapping';
 import { profileColumns } from '../core/profile';
 import { escalations, propose, type EscalationReason, type Proposal } from '../core/reconcile';
-import type { Act, IdentityIssue, MatchCandidate, SourceFile } from '../core/types';
+import type { Act, IdentityIssue, MatchCandidate, Relation, SourceFile } from '../core/types';
 import { msgs, tr } from '../i18n/lang';
 
 const STAGE = msgs(
@@ -36,7 +36,19 @@ const STAGE = msgs(
 );
 
 /** `stage` is the headline of what Lantern is doing; `detail` is the small print under it, when there is any. */
-export type Progress = (p: { stage: string; detail?: string; done: number; total: number }) => void;
+/**
+ * A pair a model has just read, for the live list on the progress screen. It lives only in memory
+ * for that screen: it is never stored and never sent. relation is the model's own reading (Lantern's
+ * rules may still override it in the review); null when the call failed or was blocked.
+ */
+export interface JudgedPair {
+  a: string;
+  b: string;
+  relation: Relation | null;
+  source: 'on_device' | 'in_cloud' | null;
+}
+
+export type Progress = (p: { stage: string; detail?: string; done: number; total: number; judged?: JudgedPair }) => void;
 
 /** Imported files run on-device only; the bundled drill may use the SDK's automatic cloud fallback. */
 export function routeFor(files: SourceFile[]): Route {
@@ -114,13 +126,13 @@ export async function reconcileFiles(o: ReconcileOptions): Promise<ReconcileResu
   if (o.judge !== false) {
     const todo = candidates.filter((c) => !c.exact);
     let done = 0;
+    const stage = () => ({
+      stage: route === 'user-local' ? tr(STAGE).local : tr(STAGE).drill,
+      detail: route === 'user-local' ? undefined : tr(STAGE).drillDetail,
+      total: todo.length,
+    });
     for (const c of todo) {
-      o.onProgress?.({
-        stage: route === 'user-local' ? tr(STAGE).local : tr(STAGE).drill,
-        detail: route === 'user-local' ? undefined : tr(STAGE).drillDetail,
-        done: done++,
-        total: todo.length,
-      });
+      o.onProgress?.({ ...stage(), done: done++ });
       try {
         const a = byId.get(c.a)!;
         const b = byId.get(c.b)!;
@@ -135,6 +147,7 @@ export async function reconcileFiles(o: ReconcileOptions): Promise<ReconcileResu
       } catch {
         /* no local verdict: escalation reason 'local-unavailable' */
       }
+      o.onProgress?.({ ...stage(), done, judged: { a: c.a, b: c.b, relation: c.local?.relation ?? null, source: c.local ? (c.local.source as JudgedPair['source']) : null } });
     }
   }
 
@@ -195,6 +208,13 @@ export async function askSecondOpinion(o: {
     } catch {
       /* the local verdict stands; the pair stays flagged */
     }
+    o.onProgress?.({
+      stage: tr(STAGE).cloud,
+      detail: tr(STAGE).cloudDetail,
+      done,
+      total: o.escalated.size,
+      judged: { a: c.a, b: c.b, relation: c.cloud?.relation ?? null, source: c.cloud ? (c.cloud.source as JudgedPair['source']) : null },
+    });
   }
   return answered;
 }

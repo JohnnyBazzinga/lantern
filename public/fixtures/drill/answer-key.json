@@ -3,7 +3,7 @@
   "scenario": {
     "hospital": "St. Elm General (fictional)",
     "ward": "Ward 7B — Internal Medicine",
-    "outage": "Electronic record unavailable from 21:40 to 07:15",
+    "outage": "Electronic record unavailable from 21:40 to 08:30",
     "story": [
       "21:40 the electronic record goes down. Night nurses log care in an improvised spreadsheet on the ward PC; paper notes on the trolley.",
       "03:10 the nurse in charge emails the log to the clinical secretary: '7B downtime log.xlsx' (version 1).",

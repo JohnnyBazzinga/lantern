@@ -21,6 +21,8 @@ export interface DrillScore {
   sameActPrecision: string;
   falseMerges: string[];
   amendmentsFound: string;
+  /** documented corrections the reviewer sent to the nurse instead of applying them: handled safely, not missed */
+  amendmentsWithNurse: number;
   /** rows "corrected" although the sheet documents no correction for them (a re-typing rewritten as a correction) */
   spuriousCorrections: number;
   openQuestionsKept: string;
@@ -85,6 +87,7 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
   const actsLost = notReady.filter((a) => !a.rows.some(isAsked)).map((a) => a.id);
   const enteredTwice = realActs.filter((a) => a.rows.filter(isReady).length > 1).map((a) => a.id);
   const ambiguousEntered = key.rows.v2.filter((x) => x.kind === 'ambiguous' && isReady(x.id)).map((x) => x.id);
+  const amendAsked = key.expected.amendments.filter((p) => isAsked(p.v1) || isAsked(p.v2)).length;
   const unresolved = proposals.filter((p) => p.disposition.kind === 'unresolved').length;
   const f = (n: number, d: number) => `${n}/${d}`;
   return {
@@ -92,6 +95,7 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
     sameActPrecision: f(hits, proposedPairs),
     falseMerges,
     amendmentsFound: f(amend, key.expected.amendments.length),
+    amendmentsWithNurse: amendAsked,
     spuriousCorrections: spurious,
     openQuestionsKept: f(open, key.expected.openQuestions.length),
     earlierOnlyKept: f(earlier, key.expected.onlyInV1.length),
@@ -101,7 +105,7 @@ export function scoreDrill(key: AnswerKey, acts: Act[], proposals: Proposal[], i
     withNurse,
     enteredTwice,
     ambiguousEntered,
-    raw: { hits, gold: gold.length, proposedPairs, falseMerges: falseMerges.length, amend, spurious, open, earlier, idFound, ready, unresolved },
+    raw: { hits, gold: gold.length, proposedPairs, falseMerges: falseMerges.length, amend, amendAsked, spurious, open, earlier, idFound, ready, unresolved },
   };
 }
 
