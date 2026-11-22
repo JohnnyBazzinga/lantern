@@ -53,7 +53,8 @@ const M = msgs(
       alike: 'Three pairs that look alike but are separate acts',
     },
     got: {
-      amend: (x: string) => `${x} applied or sent to the nurse`,
+      amend: (applied: number, asked: number, total: number) =>
+        asked ? `${applied + asked}/${total} handled: ${applied} applied, ${asked} sent to the nurse` : `${applied}/${total} applied`,
       lost: (x: string) => `${x} kept on the list`,
       identity: (x: string) => `${x} flagged`,
       open: (x: string) => `${x} sent back to their author`,
@@ -111,7 +112,8 @@ const M = msgs(
       alike: 'Três pares parecidos que são atos diferentes',
     },
     got: {
-      amend: (x) => `${x} aplicadas ou enviadas à enfermagem`,
+      amend: (applied, asked, total) =>
+        asked ? `${applied + asked}/${total} tratadas: ${applied} ${applied === 1 ? 'aplicada' : 'aplicadas'}, ${asked} ${asked === 1 ? 'enviada' : 'enviadas'} à enfermagem` : `${applied}/${total} aplicadas`,
       lost: (x) => `${x} mantidas na lista`,
       identity: (x) => `${x} assinaladas`,
       open: (x) => `${x} devolvidos a quem os escreveu`,
@@ -187,7 +189,7 @@ export default function Result({ onBack }: { onBack: () => void }) {
               <ul className="mt-3 max-w-[60rem] border-y border-rule-strong">
                 {(
                   [
-                    ['amend', t.got.amend(scores.you.amendmentsFound), scores.you.raw.amend === 3],
+                    ['amend', t.got.amend(scores.you.raw.amend ?? 0, scores.you.amendmentsWithNurse, 3), (scores.you.raw.amend ?? 0) + scores.you.amendmentsWithNurse === 3],
                     ['lost', t.got.lost(scores.you.earlierOnlyKept), scores.you.actsLost.length === 0],
                     ['identity', t.got.identity(scores.you.identityFound), scores.you.raw.idFound === 4],
                     ['open', t.got.open(scores.you.openQuestionsKept), scores.you.raw.open === 2],
@@ -237,7 +239,7 @@ export default function Result({ onBack }: { onBack: () => void }) {
                     <Row label={t.rows.lost} v={(x) => String(x.actsLost.length)} s={scores} good={(x) => x.actsLost.length === 0} />
                     <Row label={t.rows.twice} v={(x) => String(x.enteredTwice.length)} s={scores} good={(x) => x.enteredTwice.length === 0} />
                     <Row label={t.rows.ambiguous} v={(x) => String(x.ambiguousEntered.length)} s={scores} good={(x) => x.ambiguousEntered.length === 0} />
-                    <Row label={t.rows.amend} v={(x) => x.amendmentsFound} s={scores} good={(x) => x.raw.amend === 3} />
+                    <Row label={t.rows.amend} v={(x) => `${(x.raw.amend ?? 0) + x.amendmentsWithNurse}/3`} s={scores} good={(x) => (x.raw.amend ?? 0) + x.amendmentsWithNurse === 3} />
                     <Row label={t.rows.merges} v={(x) => String(x.falseMerges.length)} s={scores} good={(x) => x.falseMerges.length === 0} />
                     <Row label={t.rows.open} v={(x) => x.openQuestionsKept} s={scores} good={(x) => x.raw.open === 2} />
                     <Row label={t.rows.identity} v={(x) => x.identityFound} s={scores} good={(x) => x.raw.idFound === 4} />

@@ -293,7 +293,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
 
         {people.length > 0 && (
           <>
-            <div role="tablist" aria-label={t.people} className="no-print mt-9 flex flex-wrap gap-x-1 gap-y-1 border-b border-rule-strong">
+            <div role="tablist" aria-label={t.people} className="no-print -mx-4 mt-9 flex gap-x-1 overflow-x-auto border-b border-rule-strong px-4 sm:mx-0 sm:px-0">
               {people.map((p) => {
                 const on = p.key === current?.key;
                 return (
@@ -302,8 +302,11 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
                     role="tab"
                     type="button"
                     aria-selected={on}
-                    onClick={() => setTab(p.key)}
-                    className={`-mb-px flex items-baseline gap-2 border-b-[3px] px-3 py-2 text-left ${on ? 'border-night text-night' : 'border-transparent text-ink-soft hover:text-night'}`}
+                    onClick={(e) => {
+                      setTab(p.key);
+                      e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                    }}
+                    className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap border-b-[3px] px-3 py-2 text-left ${on ? 'border-night text-night' : 'border-transparent text-ink-soft hover:text-night'}`}
                   >
                     <span className="text-[19px] font-extrabold tracking-[-0.01em]">{p.tab}</span>
                     <span className="text-[15px] tabular-nums">

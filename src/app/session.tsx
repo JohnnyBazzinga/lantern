@@ -6,7 +6,7 @@ import { escalations, propose, type EscalationReason, type ReviewGroup } from '.
 import type { CanonicalField } from '../core/fields';
 import type { Act, AuditEvent, Disposition, SourceFile } from '../core/types';
 import { loadDrillFiles, importUserFile } from './files';
-import { askSecondOpinion, mapFile, reconcileFiles, secondOpinionPreview, type Progress } from './pipeline';
+import { askSecondOpinion, mapFile, reconcileFiles, secondOpinionPreview, type JudgedPair, type Progress } from './pipeline';
 import { buildItems, groupCopy, isDecided, suggested, type ReviewItem } from './review';
 import { clearAllSessions, latestSession, saveSession, type SessionData } from './store';
 import { ownerOf } from '../core/clinical';
@@ -62,7 +62,8 @@ const M = msgs(
 /** The session's name for people, in the current interface language. */
 export const sessionTitle = (kind: SessionData['kind']) => (kind === 'drill' ? tr(M).drillTitle : tr(M).importTitle);
 
-type Busy = { stage: string; detail?: string; done: number; total: number } | null;
+/** `pairs`: every pair a model has read in this run, newest first (memory only, for the progress screen). */
+type Busy = { stage: string; detail?: string; done: number; total: number; judged?: JudgedPair; pairs?: JudgedPair[] } | null;
 
 interface SessionApi {
   session: SessionData | null;
@@ -131,7 +132,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void saveSession({ ...session, updatedAt: Date.now() });
   }, [session, config]);
 
-  const progress: Progress = useCallback((p) => setBusy(p), []);
+  // Two progress calls can land in one render (a pair's reading, then the next pair starting), so the
+  // readings are gathered here, where no update is lost, not read off the latest state by the screen.
+  const progress: Progress = useCallback((p) => setBusy((prev) => ({ ...p, pairs: p.judged ? [p.judged, ...(prev?.pairs ?? [])] : (prev?.pairs ?? []) })), []);
   const cloudModel = config?.cloudModel ?? RC_DEFAULTS.cloud_model;
 
   const audit = (s: SessionData, action: string, targetIds: string[], extra: Partial<AuditEvent> = {}): AuditEvent[] => [

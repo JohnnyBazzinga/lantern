@@ -277,6 +277,9 @@ const M = msgs(
   },
 );
 
+/** How a relation between two rows is worded, wherever a model's reading is shown. */
+export const RELATION = { en: M.en.relation, pt: M.pt.relation };
+
 export function useLedgerEntries(): LedgerEntry[] {
   const [es, setEs] = useState<LedgerEntry[]>([]);
   useEffect(() => subscribeLedger(setEs), []);
