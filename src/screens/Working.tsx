@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { subscribeLedger, type LedgerEntry } from '../ai/ledger';
 import { useSession } from '../app/session';
+import { buildActs } from '../core/acts';
+import type { Act } from '../core/types';
 import { LanternMark, Route } from '../ui/kit';
 import { Tally } from '../ui/Tally';
 import { msgs } from '../i18n/lang';
@@ -17,6 +19,11 @@ const M = msgs(
       'extract-act': 'Read one entry',
     } as Record<string, string>,
     of: (done: number, total: number) => `${done} of ${total}`,
+    readColumns: (file: string) => `Read the columns of ${file}`,
+    second: 'Second opinion:',
+    times: (a: string, b: string) => `${a} and ${b}`,
+    noTime: 'no time',
+    bed: (b: string) => `Bed ${b || '?'}`,
     failed: (n: number) => ` ${n} ${n === 1 ? 'call' : 'calls'} failed (a busy model or a stalled answer): Lantern retries once, then leaves that row for you to decide.`,
     blocked: (n: number) => ` ${n} blocked: no on-device AI here, so your data was not sent anywhere.`,
     failedShort: 'failed',
@@ -32,6 +39,11 @@ const M = msgs(
       'extract-act': 'Leu um registo',
     },
     of: (done, total) => `${done} de ${total}`,
+    readColumns: (file) => `Leu as colunas de ${file}`,
+    second: 'Segunda opinião:',
+    times: (a, b) => `${a} e ${b}`,
+    noTime: 'sem hora',
+    bed: (b) => `Cama ${b || '?'}`,
     failed: (n) =>
       ` ${n} ${n === 1 ? 'pedido falhou' : 'pedidos falharam'} (o modelo estava ocupado ou deixou de responder): o Lantern tenta mais uma vez e, se falhar, deixa essa linha para decidir.`,
     blocked: (n) => ` ${n} ${n === 1 ? 'bloqueado' : 'bloqueados'}: não há IA local neste computador, por isso os seus dados não foram enviados para lado nenhum.`,
@@ -51,12 +63,33 @@ export default function Working() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [since] = useState(() => new Date().toISOString());
   useEffect(() => subscribeLedger((es) => setEntries(es.filter((e) => e.at >= since))), [since]);
+  // The rows behind each call, read from the opened files, so a line can say which pair it was. Only the
+  // drill's calls carry references (an imported file's calls record none), so those lines stay general.
+  const acts = useMemo(() => {
+    const m = new Map<string, Act>();
+    if (busy && session) for (const f of session.files) if (f.role === 'log') for (const a of buildActs(f)) m.set(a.id, a);
+    return m;
+    // rebuilt when a run starts, not on every progress tick
+  }, [!!busy, session?.files]);
   if (!busy) return null;
+  const what = (e: LedgerEntry) => {
+    const ids = e.task === 'second-opinion' ? e.outgoingRefs.slice(0, 2) : (e.outgoingRefs[0]?.split('~') ?? []);
+    const a = acts.get(ids[0] ?? '');
+    const b = acts.get(ids[1] ?? '');
+    if (a && b)
+      return (
+        <>
+          {e.task === 'second-opinion' && <span className="text-ink-soft">{t.second} </span>}
+          <span className="font-semibold">{a.patientName || b.patientName || t.bed(a.bed)}</span>
+          <span className="ml-3 whitespace-nowrap tabular-nums text-ink-soft">{t.times(a.eventTime || t.noTime, b.eventTime || t.noTime)}</span>
+        </>
+      );
+    const file = e.task.startsWith('map-column') ? e.outgoingRefs[0]?.split('#')[0] : undefined;
+    return file && e.task === 'map-columns' ? t.readColumns(file) : (t.task[e.task] ?? e.task);
+  };
   const pct = busy.total > 1 ? Math.round((100 * busy.done) / busy.total) : null;
   const failed = entries.filter((e) => e.inferenceSource === 'error').length;
   const blocked = entries.filter((e) => e.inferenceSource === 'blocked').length;
-  // "Comparing the two versions (fictional drill: …)": the first part is the headline, the rest the small print
-  const [, head = busy.stage, tail = ''] = busy.stage.match(/^(.*?)\s*\((.*)\)$/) ?? [];
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-paper px-4 pb-10 pt-[9vh] sm:px-8 sm:pt-[13vh]" role="status" aria-live="polite">
@@ -66,8 +99,8 @@ export default function Working() {
           <span className="text-[19px] font-extrabold tracking-[-0.01em]">Lantern</span>
         </div>
         <div className="min-h-[5.5rem]">
-          <p className="font-display text-[28px] font-bold leading-[1.15] tracking-[-0.01em] text-night sm:text-[34px]">{head}</p>
-          {tail && <p className="mt-1.5 max-w-[64ch] text-[16px] text-ink-soft">{tail.charAt(0).toUpperCase() + tail.slice(1)}.</p>}
+          <p className="font-display text-[28px] font-bold leading-[1.15] tracking-[-0.01em] text-night sm:text-[34px]">{busy.stage}</p>
+          {busy.detail && <p className="mt-1.5 max-w-[64ch] text-[16px] text-ink-soft">{busy.detail}</p>}
         </div>
 
         <div className="mt-5 flex items-center gap-4">
@@ -99,7 +132,7 @@ export default function Working() {
               <ul className="border border-rule-strong bg-sheet">
                 {entries.slice(0, 7).map((e) => (
                   <li key={e.id} className="flex items-center justify-between gap-3 border-b border-rule px-3 py-2 text-[16px] last:border-b-0">
-                    <span>{t.task[e.task] ?? e.task}</span>
+                    <span className="min-w-0">{what(e)}</span>
                     <span className="flex shrink-0 items-center gap-3">
                       <span className="whitespace-nowrap text-[15px] tabular-nums text-ink-soft">{(e.latencyMs / 1000).toFixed(1)} s</span>
                       {e.inferenceSource === 'on_device' || e.inferenceSource === 'in_cloud' ? (

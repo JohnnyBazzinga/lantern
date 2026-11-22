@@ -19,19 +19,24 @@ const STAGE = msgs(
     columns: (file: string) => `Reading the columns of ${file}`,
     column: (header: string) => `Double-checking column “${header}”`,
     local: 'Comparing rows on this device',
-    drill: 'Comparing the two versions (fictional drill: on this device if it has the AI, otherwise in the cloud)',
-    cloud: 'Asking the cloud for a second opinion (synthetic drill data)',
+    drill: 'Comparing the two versions',
+    drillDetail: 'Fictional drill: on this device if it has the AI, otherwise in the cloud.',
+    cloud: 'Asking the cloud for a second opinion',
+    cloudDetail: 'Fictional drill rows only.',
   },
   {
     columns: (file) => `A ler as colunas de ${file}`,
     column: (header) => `A confirmar a coluna “${header}”`,
     local: 'A comparar as linhas neste computador',
-    drill: 'A comparar as duas versões (simulacro fictício: neste computador, se tiver a IA; senão, na nuvem)',
-    cloud: 'A pedir uma segunda opinião à nuvem (dados fictícios do simulacro)',
+    drill: 'A comparar as duas versões',
+    drillDetail: 'Simulacro fictício: neste computador, se tiver a IA; senão, na nuvem.',
+    cloud: 'A pedir uma segunda opinião à nuvem',
+    cloudDetail: 'Só linhas fictícias do simulacro.',
   },
 );
 
-export type Progress = (p: { stage: string; done: number; total: number }) => void;
+/** `stage` is the headline of what Lantern is doing; `detail` is the small print under it, when there is any. */
+export type Progress = (p: { stage: string; detail?: string; done: number; total: number }) => void;
 
 /** Imported files run on-device only; the bundled drill may use the SDK's automatic cloud fallback. */
 export function routeFor(files: SourceFile[]): Route {
@@ -112,6 +117,7 @@ export async function reconcileFiles(o: ReconcileOptions): Promise<ReconcileResu
     for (const c of todo) {
       o.onProgress?.({
         stage: route === 'user-local' ? tr(STAGE).local : tr(STAGE).drill,
+        detail: route === 'user-local' ? undefined : tr(STAGE).drillDetail,
         done: done++,
         total: todo.length,
       });
@@ -175,7 +181,7 @@ export async function askSecondOpinion(o: {
     if (!c) continue;
     const a = byId.get(c.a)!;
     const b = byId.get(c.b)!;
-    o.onProgress?.({ stage: tr(STAGE).cloud, done: done++, total: o.escalated.size });
+    o.onProgress?.({ stage: tr(STAGE).cloud, detail: tr(STAGE).cloudDetail, done: done++, total: o.escalated.size });
     const context = o.acts.filter((x) => x.patientKey && x.patientKey === a.patientKey);
     try {
       const r = await runTask(secondOpinionTask, secondOpinionInput(a, b, context), {

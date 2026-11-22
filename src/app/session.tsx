@@ -62,7 +62,7 @@ const M = msgs(
 /** The session's name for people, in the current interface language. */
 export const sessionTitle = (kind: SessionData['kind']) => (kind === 'drill' ? tr(M).drillTitle : tr(M).importTitle);
 
-type Busy = { stage: string; done: number; total: number } | null;
+type Busy = { stage: string; detail?: string; done: number; total: number } | null;
 
 interface SessionApi {
   session: SessionData | null;
