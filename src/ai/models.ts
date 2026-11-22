@@ -7,7 +7,8 @@ import {
   type GenerativeModel,
   type HybridParams,
 } from 'firebase/ai';
-import { getFirebaseApp } from '../firebase/app';
+import { getLimitedUseToken } from 'firebase/app-check';
+import { getAppCheckInstance, getFirebaseApp } from '../firebase/app';
 import { assertLocalReady, hasPromptApi, LOCAL_CORE_OPTIONS, LocalModelUnavailableError } from './capability';
 import { recordLedger, type LedgerEntry, type LedgerMode } from './ledger';
 import { inferenceRequests, watchRequests } from './netwatch';
@@ -107,6 +108,49 @@ let localCalls = 0;
 
 const CLOUD_TIMEOUT_MS = 45_000;
 /**
+ * A network that silently drops Google's requests (some hospital firewalls do) can leave a cloud call
+ * waiting forever: App Check's reCAPTCHA step runs before the SDK's request timeout applies. So every
+ * attempt that may reach the cloud gets a hard deadline, and once the cloud is found unreachable,
+ * Lantern stops trying it for a while: the drill finishes on its rules instead of hanging.
+ */
+const CLOUD_HARD_DEADLINE_MS = CLOUD_TIMEOUT_MS + 5_000;
+const CLOUD_PAUSE_MS = 2 * 60_000;
+const UNREACHABLE = /failed to fetch|networkerror|network error|fetch-error|load failed|appCheck\/|recaptcha/i;
+let cloudDownUntil = 0;
+
+/** The cloud cannot be reached from this network right now; not worth retrying for a while. */
+export class CloudUnreachableError extends Error {}
+
+/**
+ * Before the first cloud call of a page: can this network get an App Check token at all? Bounded, so a
+ * blocked reCAPTCHA is found in seconds rather than at the end of the 50 s call deadline.
+ */
+const APP_CHECK_DEADLINE_MS = 10_000;
+let appCheckReached = false;
+async function cloudPreflight(): Promise<void> {
+  if (appCheckReached) return;
+  const ac = getAppCheckInstance();
+  if (!ac) return; // no App Check in this build: the call itself will say what is wrong
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const { token } = await Promise.race([
+      getLimitedUseToken(ac),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new CloudUnreachableError(`App Check gave no token within ${APP_CHECK_DEADLINE_MS / 1000} s: this network may be blocking Google's servers.`)), APP_CHECK_DEADLINE_MS);
+      }),
+    ]);
+    if (!token) throw new CloudUnreachableError('App Check gave an empty token.');
+    appCheckReached = true;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const localReady = () => assertLocalReady().then(
+  () => true,
+  () => false,
+);
+/**
  * Gemini Nano normally answers a Lantern prompt in 2–10 s. Constrained decoding can occasionally loop
  * inside a free-text field until the context window is full (observed: ~6 min, then truncated JSON),
  * so an on-device call that runs past this is stopped and retried once on a fresh session.
@@ -152,6 +196,7 @@ export async function runTask<T>(task: PromptTask<T>, input: string, opts: TaskO
       return await attempt(task, input, opts, model, failed ? `after ${failed} failed attempt${failed > 1 ? 's' : ''}` : undefined);
     } catch (e) {
       last = e;
+      if (e instanceof CloudUnreachableError) throw e;
       failed++;
       // a stalled call or a cut-off answer is sampling bad luck: worth one fresh try
       const unlucky = deviceStalled(e) || (failed === 1 && Boolean((e as { ledger?: unknown }).ledger));
@@ -206,6 +251,23 @@ async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cl
     }
   }
 
+  if (opts.route !== 'user-local' && Date.now() < cloudDownUntil && (opts.route === 'cloud' || !(await localReady()))) {
+    const note = 'Skipped: the cloud could not be reached from this network a moment ago.';
+    recordLedger({ ...base, inferenceSource: 'error', latencyMs: 0, coldStart: false, inferenceRequests: 0, googleRequests: [], schemaValid: null, note });
+    throw new CloudUnreachableError(note);
+  }
+
+  if (opts.route === 'cloud' || (opts.route === 'drill-hybrid' && !(await localReady()))) {
+    try {
+      await cloudPreflight();
+    } catch (e) {
+      cloudDownUntil = Date.now() + CLOUD_PAUSE_MS;
+      const note = `Cloud unreachable: ${errorText(e)}`;
+      recordLedger({ ...base, inferenceSource: 'error', latencyMs: 0, coldStart: false, inferenceRequests: 0, googleRequests: [], schemaValid: null, note });
+      throw e instanceof CloudUnreachableError ? e : new CloudUnreachableError(note);
+    }
+  }
+
   const watch = watchRequests();
   const t0 = performance.now();
   const model = modelFor(task as PromptTask<unknown>, opts.route, cloudModel);
@@ -216,12 +278,26 @@ async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cl
     ON_DEVICE_TIMEOUT_MS,
   );
   if (device) device.signal = deadline.signal;
+  let hard: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = await model.generateContent(input).catch((e: unknown) => {
+    const call = model.generateContent(input).catch((e: unknown) => {
       // Chrome rejects with the abort reason; keep the stall recognisable whatever it is wrapped in,
       // but never relabel the SDK's own cloud timeout (a drill call that went to the cloud)
       throw deadline.signal.aborted && !/timeout has expired/i.test(errorText(e)) ? (deadline.signal.reason as Error) : e;
     });
+    const res =
+      opts.route === 'user-local'
+        ? await call
+        : await Promise.race([
+            call,
+            new Promise<never>((_, reject) => {
+              call.catch(() => {}); // the losing call may still reject later; it is already accounted for
+              hard = setTimeout(
+                () => reject(new CloudUnreachableError(`No answer within ${CLOUD_HARD_DEADLINE_MS / 1000} s: this network may be blocking Google's servers.`)),
+                CLOUD_HARD_DEADLINE_MS,
+              );
+            }),
+          ]);
     const latencyMs = Math.round(performance.now() - t0);
     const seen = watch.stop();
     const raw = res.response.text();
@@ -265,6 +341,10 @@ async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cl
   } catch (e) {
     const seen = watch.stop();
     if ((e as { ledger?: unknown }).ledger) throw e;
+    if (opts.route !== 'user-local' && !deviceStalled(e) && (e instanceof CloudUnreachableError || UNREACHABLE.test(errorText(e)))) {
+      cloudDownUntil = Date.now() + CLOUD_PAUSE_MS;
+      if (!(e instanceof CloudUnreachableError)) e = new CloudUnreachableError(errorText(e));
+    }
     recordLedger({
       ...base,
       inferenceSource: 'error',
@@ -278,6 +358,7 @@ async function attempt<T>(task: PromptTask<T>, input: string, opts: TaskOpts, cl
     throw e;
   } finally {
     clearTimeout(timer);
+    clearTimeout(hard);
     if (device) device.signal = undefined;
   }
 }

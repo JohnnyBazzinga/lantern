@@ -71,6 +71,11 @@ A correction note is a word such as "corrected", "corr.", "amended", "error", "m
 - **Cloud:** each request times out after 45 s (the SDK default is 180 s).
   - A 429 or 5xx error, or a quota or overload message, is retried once on the same model after 1.5 s. The next try uses `cloud_fallback_model` from Remote Config.
   - After a timeout, the remaining tries on that model are skipped.
+- **A network that drops Google's requests** (some hospital firewalls do) must not leave the drill waiting forever. Found with a test that never answers any Google request: the drill used to stop at "Reading the columns" indefinitely; it now reaches the review in about 16 s on its rules.
+  - The Remote Config fetch, Firebase Installations included, is bounded at 5 s; past that the last activated configuration applies (`src/firebase/remoteConfig.ts`).
+  - Before the first call of a page that will go to the cloud, Lantern asks App Check for a token, bounded at 10 s. The SDK's request timeout does not cover the reCAPTCHA step before it.
+  - Every attempt that may reach the cloud has a hard deadline of 50 s.
+  - Once the cloud is found unreachable, it is not tried again for 2 minutes: the remaining calls fail at once, each with its own ledger entry, and Lantern's rules decide. A failed second opinion can be retried from the review.
 - **On device:** each call gets its own 45 s deadline. The SDK keeps the `onDeviceParams` object Lantern passes in and hands `promptOptions` to Chrome's `session.prompt()` on every call, so Lantern sets `promptOptions.signal` just before each call.
   - A stalled call, or an answer that fails schema validation, is retried once on a fresh session.
   - The reason: in two drill runs, constrained decoding looped inside an unbounded free-text field for about 6 minutes (see [EVALUATION.md](EVALUATION.md)).

@@ -53,6 +53,9 @@ const fromDefaults = (detail: string): LanternConfig => ({
 
 let frozen: Promise<LanternConfig> | null = null;
 
+/** The whole fetch step, Installations included; past this the last activated configuration applies. */
+const FETCH_DEADLINE_MS = 5000;
+
 export function loadConfig(): Promise<LanternConfig> {
   if (!frozen) frozen = load();
   return frozen;
@@ -78,7 +81,12 @@ async function load(): Promise<LanternConfig> {
   let detail = 'Using the last activated configuration';
   if (navigator.onLine) {
     try {
-      const changed = await fetchAndActivate(rc);
+      // fetchTimeoutMillis covers the fetch itself, not the Firebase Installations call before it,
+      // which can wait forever on a network that drops Google's requests: bound the whole step.
+      const changed = await Promise.race([
+        fetchAndActivate(rc),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Remote Config fetch timed out')), FETCH_DEADLINE_MS)),
+      ]);
       source = 'remote';
       detail = changed ? 'Fetched and activated a new configuration' : 'Configuration is up to date';
     } catch {

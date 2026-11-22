@@ -39,6 +39,7 @@ const M = msgs(
     rulesAlone: " No on-device AI ran on this PC: the suggestions come from Lantern's rules alone, and nothing was sent.",
     cloudFailed:
       'The second opinion did not arrive: the cloud model did not answer. Nothing was changed. Decide these comparisons yourself, or ask the nurse who wrote them.',
+    tryAgain: 'Try again',
     arrival: (rows: number, items: number, copies: number) =>
       `Lantern compared ${rows} rows and left ${items} things to decide, most urgent first.${copies ? ` The ${copies} identical pairs at the end can be accepted in one click.` : ''}`,
     nothing: 'Nothing to review.',
@@ -169,6 +170,7 @@ const M = msgs(
     rulesAlone: ' Nenhuma IA local correu neste computador: as sugestões vêm só das regras do Lantern, e nada foi enviado.',
     cloudFailed:
       'A segunda opinião não chegou: o modelo na nuvem não respondeu. Nada foi alterado. Decida estas comparações na revisão, ou pergunte a quem as escreveu.',
+    tryAgain: 'Tentar de novo',
     arrival: (rows, items, copies) =>
       `O Lantern comparou ${rows} linhas e deixou ${items} pontos para decidir, do mais urgente para o menos urgente.${copies ? ` Os ${copies} pares iguais, no fim, podem ser aceites de uma vez.` : ''}`,
     nothing: 'Nada para rever.',
@@ -395,7 +397,15 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
           {/* asked, and not one answer came back: say what happened and what to do, in the cloud's colour */}
           {session.cloudAsked && !session.candidates.some((c) => c.cloud) && undecided.length > 0 && (
             <p role="status" className="border-b border-ballpoint/25 bg-ballpoint-wash px-4 py-2.5 text-[16px] leading-snug sm:px-8">
-              <Route source="in_cloud" /> <span className="ml-1">{t.cloudFailed}</span>
+              <Route source="in_cloud" /> <span className="ml-1">{t.cloudFailed}</span>{' '}
+              <button
+                type="button"
+                className="ml-1 font-semibold text-ballpoint underline underline-offset-2 disabled:text-ink-faint disabled:no-underline"
+                disabled={!!s.busy}
+                onClick={() => void s.askCloud()}
+              >
+                {t.tryAgain}
+              </button>
             </p>
           )}
           {s.error && (
