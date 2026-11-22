@@ -122,7 +122,7 @@ export function censusRow(files: SourceFile[], patientId: string, label: string,
   };
 }
 
-const WIDTH: Record<Field, string> = { bed: '4rem', patient: '12.5rem', time: '5rem', what: 'auto', notes: '36%', by: '4.25rem' };
+const WIDTH: Record<Field, string> = { bed: '4rem', patient: '12.5rem', time: '5.75rem', what: 'auto', notes: '36%', by: '4.25rem' };
 const ORDER: Field[] = ['bed', 'patient', 'time', 'what', 'notes', 'by'];
 
 /**
@@ -137,7 +137,7 @@ export function Stack({ rows }: { rows: StackRow[] }) {
   const cellText = (c: Cell) =>
     !c.value && c.blank ? (
       // an empty cell is described in Lantern's words, never in the ward's typeface
-      <span className="block text-[15px] leading-[1.55] text-ink-soft">{c.blankDiffers ? <mark className="diff">{c.blank}</mark> : c.blank}</span>
+      <span className="block whitespace-nowrap text-[15px] leading-[1.55] text-ink-soft">{c.blankDiffers ? <mark className="diff">{c.blank}</mark> : c.blank}</span>
     ) : (
     <span className="block font-mono text-[16px] leading-[1.45] tracking-[-0.015em] break-words">
       {c.lines && c.lines.length > 1 ? (

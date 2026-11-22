@@ -118,17 +118,17 @@ export default function Sources() {
 
         {/* the action stays in view: the sheets are long and the button used to sit far below the fold */}
         <div className="sticky bottom-0 z-10 -mx-4 mt-9 border-t border-rule-strong bg-paper px-4 py-3 sm:-mx-8 sm:px-8 sm:py-4">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <Button size="lg" onClick={() => void s.compare()} disabled={!!s.busy} className="w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 lg:flex-nowrap">
+            <Button size="lg" onClick={() => void s.compare()} disabled={!!s.busy} className="w-full shrink-0 whitespace-nowrap sm:w-auto">
               {t.compare}
             </Button>
-            <span className={`flex items-center gap-2 text-[16px] ${flagged ? 'text-pen' : ''}`}>
+            <span className={`flex shrink-0 items-center gap-2 text-[16px] ${flagged ? 'text-pen' : ''}`}>
               <StateGlyph state={flagged ? 'waiting' : 'done'} />
               {flagged ? t.stillFlagged(flagged) : t.allChecked}
             </span>
             {/* on a phone the bar keeps to the button and the count; where it runs is said below */}
-            <span className="hidden max-w-[64ch] items-center gap-2 text-[15px] text-ink-soft lg:flex">{runsOn}</span>
-            <span className="ml-auto hidden sm:block">
+            <span className="hidden min-w-0 max-w-[64ch] items-center gap-2 text-[15px] leading-snug text-ink-soft lg:flex">{runsOn}</span>
+            <span className="ml-auto hidden shrink-0 sm:block">
               <Button tone="quiet" onClick={() => void s.reset()}>
                 {t.startOver}
               </Button>
