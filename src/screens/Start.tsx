@@ -4,18 +4,21 @@ import { mapColumnsTask } from '../ai/prompts/v1/mapColumns';
 import { sessionTitle, useSession } from '../app/session';
 import { locale, msgs } from '../i18n/lang';
 import { LangToggle, useT } from '../i18n/react';
-import { Button, LanternMark, Notice } from '../ui/kit';
+import { nightMinutes } from '../core/text';
+import { Button, LanternMark, Notice, Route } from '../ui/kit';
+import { NightLine } from '../ui/NightLine';
 
 const M = msgs(
   {
     night: [
-      { t: '21:40', text: 'The electronic record goes down. Night nurses log care in a spreadsheet on the ward PC, and on paper.' },
-      { t: '03:10', text: 'The nurse in charge emails the spreadsheet to the clinical secretary.' },
-      { t: '07:40', text: 'A nurse replies to all with a copy re-typed from notes: three corrections, and three rows lost when the sheet was sorted.' },
-      { t: '08:30', text: 'Systems are back. Rita, the clinical secretary, has two versions and the 21:00 census. Everything has to go back into the record.' },
+      { t: '21:40', title: 'The record goes down', text: 'Night nurses log care in a spreadsheet on the ward PC, and on paper.' },
+      { t: '03:10', title: 'Version 1 is emailed', text: 'The nurse in charge sends the spreadsheet to the clinical secretary.' },
+      { t: '07:40', title: 'Version 2, reply-all', text: 'A nurse replies with a copy re-typed from notes: three corrections, and three rows lost when the sheet was sorted.' },
+      { t: '08:30', title: 'The systems are back', text: 'Rita, the clinical secretary, has two versions and the 21:00 census. Everything has to go back into the record.' },
     ],
     nightTitle: 'The night in the drill',
-    headline: 'The systems are back. Now last night has to go back into the record.',
+    down: (h: number, m: number) => `The electronic record is down for ${h} h ${m} min`,
+    headline: ['The systems are back.', 'Now last night has to go back into the record.'],
     lede:
       'Lantern compares the spreadsheets and notes a ward kept during an IT outage, links every act to the cell it came from, and helps you decide, row by row, what goes back into the record. Patient data stays on this device.',
     startDrill: 'Start the Ward 7B drill',
@@ -62,16 +65,21 @@ const M = msgs(
       </>
     ),
     needsChrome: 'Gemini Nano needs desktop Chrome',
+    routes: 'Where the work runs',
+    routeCloud:
+      'The cloud only ever sees the fictional drill: a second opinion on disputed rows, or the whole comparison when this browser has no on-device AI. Your own files are never sent.',
+    routeRule: "Lantern's own rules find exact copies, corrections, repeated doses and identity problems. They have the last word over any AI answer.",
   },
   {
     night: [
-      { t: '21:40', text: 'O processo clínico eletrónico deixa de funcionar. A equipa de enfermagem da noite regista os cuidados numa folha de cálculo, no computador da enfermaria, e em papel.' },
-      { t: '03:10', text: 'Quem coordena o turno envia a folha por email ao secretariado clínico.' },
-      { t: '07:40', text: 'Alguém da enfermagem responde a todos com uma cópia refeita a partir das notas: três correções, e três linhas perdidas quando a folha foi ordenada.' },
-      { t: '08:30', text: 'Os sistemas voltam. Rita, do secretariado clínico, tem duas versões e a lista de doentes das 21:00. Tudo tem de voltar ao processo clínico.' },
+      { t: '21:40', title: 'O processo clínico eletrónico falha', text: 'A equipa de enfermagem da noite regista os cuidados numa folha de cálculo, no computador da enfermaria, e em papel.' },
+      { t: '03:10', title: 'A versão 1 segue por email', text: 'Quem coordena o turno envia a folha ao secretariado clínico.' },
+      { t: '07:40', title: 'A versão 2, em resposta a todos', text: 'Alguém da enfermagem responde com uma cópia refeita a partir das notas: três correções, e três linhas perdidas quando a folha foi ordenada.' },
+      { t: '08:30', title: 'Os sistemas voltam', text: 'Rita, do secretariado clínico, tem duas versões e a lista de doentes das 21:00. Tudo tem de voltar ao processo clínico.' },
     ],
     nightTitle: 'A noite do simulacro',
-    headline: 'Os sistemas voltaram. Falta registar tudo o que aconteceu durante a noite.',
+    down: (h, m) => `Processo clínico eletrónico indisponível durante ${h} h ${m} min`,
+    headline: ['Os sistemas voltaram.', 'Falta registar tudo o que aconteceu durante a noite.'],
     lede:
       'O Lantern compara as folhas de cálculo e as notas que uma enfermaria guardou durante uma falha informática, liga cada ato à célula de onde veio e ajuda a decidir, linha a linha, o que volta ao processo clínico. Os dados dos doentes ficam neste computador.',
     startDrill: 'Começar o simulacro da enfermaria 7B',
@@ -119,6 +127,10 @@ const M = msgs(
       </>
     ),
     needsChrome: 'O Gemini Nano precisa do Chrome para computador',
+    routes: 'Onde corre o trabalho',
+    routeCloud:
+      'A nuvem só vê o simulacro fictício: uma segunda opinião sobre as linhas em dúvida, ou toda a comparação quando este navegador não tem IA local. Os seus ficheiros nunca são enviados.',
+    routeRule: 'As regras do Lantern encontram cópias exatas, correções, doses repetidas e dúvidas de identificação. Prevalecem sobre qualquer resposta da IA.',
   },
 );
 
@@ -151,130 +163,179 @@ export default function Start() {
     void s.startImport({ census: census.current?.files?.[0], earlier: e, later: l });
   };
 
+  // the drill's night, to scale: 21:00 to 09:00, with the record down from the first event to the last
+  const at = t.night.map((n) => nightMinutes(n.t)!);
+  const down = at[at.length - 1]! - at[0]!;
+
   return (
-    <main className="mx-auto max-w-6xl px-5 pb-20 pt-8 sm:px-8">
-      <header className="mb-14 flex items-center justify-between gap-4 text-ink">
+    <main className="mx-auto max-w-[1360px] px-4 pb-16 pt-5 sm:px-8 sm:pt-7">
+      <header className="flex items-center justify-between gap-4 text-night">
         <span className="flex items-center gap-2">
-          <LanternMark />
-          <span className="text-lg font-semibold">Lantern</span>
+          <LanternMark size={30} />
+          <span className="text-[22px] font-extrabold tracking-[-0.01em]">Lantern</span>
         </span>
         <LangToggle />
       </header>
 
-      <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
-        <section>
-          <h1 className="max-w-[18ch] text-[2.6rem] font-semibold leading-[1.08] tracking-[-0.015em] sm:text-[3.2rem]">{t.headline}</h1>
-          <p className="mt-6 max-w-[60ch] text-lg text-ink-soft">{t.lede}</p>
+      <h1 className="mt-10 text-[44px] font-extrabold leading-[1.02] tracking-[-0.02em] text-night sm:mt-14 sm:text-[56px] lg:text-[68px]">
+        <span className="block">{t.headline[0]}</span>
+        <span className="block max-w-[24ch]">{t.headline[1]}</span>
+      </h1>
 
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button onClick={() => void s.startDrill()} disabled={!!s.busy} className="px-5 py-3 text-base">
-              {t.startDrill}
+      <div className="mt-7 grid gap-x-16 gap-y-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <p className="max-w-[58ch] text-[19px] leading-[1.5] text-ink-soft sm:text-[21px]">{t.lede}</p>
+        <div className="lg:w-[28rem]">
+          <Button size="lg" onClick={() => void s.startDrill()} disabled={!!s.busy} className="w-full sm:w-auto lg:w-full lg:whitespace-nowrap">
+            {t.startDrill}
+          </Button>
+          <p className="mt-2.5 text-[15px] text-ink-soft">{t.drillNote}</p>
+        </div>
+      </div>
+
+      {s.resumable && (
+        <div className="mt-6 max-w-[70ch] border-l-4 border-night bg-sheet px-4 py-3 text-[16px]">
+          <p>
+            <strong className="font-semibold">{t.saved}</strong>{' '}
+            {t.savedWhat(
+              sessionTitle(s.resumable.kind).toLowerCase(),
+              new Date(s.resumable.createdAt).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
+              s.resumable.reviewer ?? '',
+            )}{' '}
+            {s.resumable.kind === 'import' && t.savedShared}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button tone="secondary" onClick={s.resume}>
+              {t.resume}
+            </Button>
+            <Button tone="quiet" onClick={() => void s.reset()}>
+              {t.remove}
             </Button>
           </div>
-          {s.resumable && (
-            <div className="mt-5 max-w-[62ch] rounded-md border border-rule-strong bg-sheet px-4 py-3 text-[15px]">
-              <p>
-                <strong className="font-semibold">{t.saved}</strong>{' '}
-                {t.savedWhat(
-                  sessionTitle(s.resumable.kind).toLowerCase(),
-                  new Date(s.resumable.createdAt).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
-                  s.resumable.reviewer ?? '',
-                )}{' '}
-                {s.resumable.kind === 'import' && t.savedShared}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button tone="secondary" onClick={s.resume}>
-                  {t.resume}
-                </Button>
-                <Button tone="quiet" onClick={() => void s.reset()}>
-                  {t.remove}
-                </Button>
-              </div>
-            </div>
-          )}
-          <p className="mt-3 text-sm text-ink-faint">{t.drillNote}</p>
+        </div>
+      )}
+      {s.error && (
+        <div className="mt-5 max-w-[70ch]">
+          <Notice tone="pen">{s.error}</Notice>
+        </div>
+      )}
 
-          <div className="mt-8 max-w-[62ch]">
-            <Readiness local={s.local} preparing={preparing} onPrepare={prepare} />
-            {prepError && <p className="mt-2 text-sm text-pen">{prepError}</p>}
-          </div>
-          {s.error && (
-            <div className="mt-4 max-w-[62ch]">
-              <Notice tone="pen">{s.error}</Notice>
-            </div>
-          )}
+      <section aria-labelledby="night" className="mt-10 sm:mt-12">
+        <h2 id="night" className="text-[15px] text-ink-soft">
+          {t.nightTitle}
+        </h2>
+        <div className="mt-1 hidden md:block" aria-hidden>
+          <NightLine
+            from={nightMinutes('21:00')!}
+            to={nightMinutes('09:00')!}
+            down={[at[0]!, at[at.length - 1]!]}
+            marks={t.night.map((n, i) => ({ at: at[i]!, label: n.t }))}
+            inside={t.down(Math.floor(down / 60), down % 60)}
+            label={t.nightTitle}
+            animate
+          />
+        </div>
+        {/* on a phone the night runs down the page instead: a dark band at the left, a lamp at each event */}
+        <ol className="relative mt-4 border-l-[10px] border-night pl-5 md:mt-3 md:grid md:grid-cols-4 md:gap-x-8 md:border-l-0 md:pl-0">
+          {t.night.map((n) => (
+            <li key={n.t} className="relative mb-6 last:mb-0 md:mb-0">
+              <span className="absolute -left-[32px] top-[7px] h-[14px] w-[14px] rounded-full bg-lamp md:hidden" aria-hidden />
+              <time className="block text-[19px] font-extrabold tabular-nums text-night md:hidden">{n.t}</time>
+              <p className="text-[17px] font-semibold leading-snug text-night">
+                <span className="hidden tabular-nums md:inline">{n.t} </span>
+                {n.title}
+              </p>
+              <p className="mt-1 max-w-[42ch] text-[16px] leading-[1.45] text-ink-soft">{n.text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <div className="mt-12 grid gap-x-16 gap-y-12 border-t border-rule-strong pt-9 lg:grid-cols-2">
+        <section aria-labelledby="routes">
+          <h2 id="routes" className="text-[21px] font-extrabold tracking-[-0.01em] text-night">
+            {t.routes}
+          </h2>
+          <ul className="mt-4 space-y-4 text-[16px] leading-[1.45]">
+            <li className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[10.25rem_minmax(0,1fr)]">
+              <span>
+                <Route source="on_device" />
+              </span>
+              <div>
+                <Readiness local={s.local} preparing={preparing} onPrepare={prepare} />
+                {prepError && <p className="mt-2 text-pen">{prepError}</p>}
+              </div>
+            </li>
+            <li className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[10.25rem_minmax(0,1fr)]">
+              <span>
+                <Route source="in_cloud" />
+              </span>
+              <p>{t.routeCloud}</p>
+            </li>
+            <li className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[10.25rem_minmax(0,1fr)]">
+              <span>
+                <Route source="rule" />
+              </span>
+              <p>{t.routeRule}</p>
+            </li>
+          </ul>
         </section>
 
-        <section aria-labelledby="night" className="lg:pt-3">
-          <h2 id="night" className="mb-5 text-[15px] font-semibold text-ink-soft">
-            {t.nightTitle}
+        <section aria-labelledby="own">
+          <h2 id="own" className="text-[21px] font-extrabold tracking-[-0.01em] text-night">
+            {t.ownTitle}
           </h2>
-          <ol className="relative border-l-2 border-rule pl-6">
-            {t.night.map((n) => (
-              <li key={n.t} className="mb-7 last:mb-0">
-                <span className="absolute -left-[7px] mt-1.5 h-3 w-3 rounded-full border-2 border-paper bg-ink" aria-hidden />
-                <time className="block text-xl font-semibold tabular-nums">{n.t}</time>
-                <p className="mt-1 max-w-[46ch] text-ink-soft">{n.text}</p>
-              </li>
-            ))}
-          </ol>
+          <p className="mt-4 max-w-[62ch] text-[16px] leading-[1.45] text-ink-soft">{t.ownText}</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <FilePick label={t.census} hint={t.fileTypes} inputRef={census} picked={picked.census} onPick={(n) => setPicked((p) => ({ ...p, census: n }))} />
+            <FilePick label={t.earlier} hint={t.fileTypes} inputRef={earlier} picked={picked.earlier} onPick={(n) => setPicked((p) => ({ ...p, earlier: n }))} />
+            <FilePick label={t.later} hint={t.fileTypes} inputRef={later} picked={picked.later} onPick={(n) => setPicked((p) => ({ ...p, later: n }))} />
+          </div>
+          <Button tone="secondary" className="mt-4" disabled={!picked.earlier || !picked.later || !!s.busy} onClick={importFiles}>
+            {t.open}
+          </Button>
         </section>
       </div>
 
-      <section className="mt-20 max-w-3xl border-t border-rule pt-10" aria-labelledby="own">
-        <h2 id="own" className="text-xl font-semibold">
-          {t.ownTitle}
-        </h2>
-        <p className="mt-2 max-w-[62ch] text-ink-soft">{t.ownText}</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          <FilePick label={t.census} hint={t.fileTypes} inputRef={census} picked={picked.census} onPick={(n) => setPicked((p) => ({ ...p, census: n }))} />
-          <FilePick label={t.earlier} hint={t.fileTypes} inputRef={earlier} picked={picked.earlier} onPick={(n) => setPicked((p) => ({ ...p, earlier: n }))} />
-          <FilePick label={t.later} hint={t.fileTypes} inputRef={later} picked={picked.later} onPick={(n) => setPicked((p) => ({ ...p, later: n }))} />
-        </div>
-        <Button tone="secondary" className="mt-5" disabled={!picked.earlier || !picked.later || !!s.busy} onClick={importFiles}>
-          {t.open}
-        </Button>
-      </section>
-
-      <footer className="mt-20 max-w-[70ch] text-sm text-ink-faint">
+      <footer className="mt-14 max-w-[84ch] text-[15px] text-ink-faint">
         {t.footer}{' '}
-        <a className="underline underline-offset-2" href="https://github.com/JohnnyBazzinga/lantern/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">
-          {t.privacy}
-        </a>
-        <a className="ml-4 underline underline-offset-2" href="https://github.com/JohnnyBazzinga/lantern" target="_blank" rel="noreferrer">
-          {t.source}
-        </a>
-        <a className="ml-4 underline underline-offset-2" href="#/lab">
-          {t.lab}
-        </a>
+        <span className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+          <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/JohnnyBazzinga/lantern/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">
+            {t.privacy}
+          </a>
+          <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/JohnnyBazzinga/lantern" target="_blank" rel="noreferrer">
+            {t.source}
+          </a>
+          <a className="underline underline-offset-2 hover:text-ink" href="#/lab">
+            {t.lab}
+          </a>
+        </span>
       </footer>
     </main>
   );
 }
 
+/** Whether this PC has the on-device model: the first line of "where the work runs". */
 function Readiness({ local, preparing, onPrepare }: { local: ReturnType<typeof useSession>['local']; preparing: number | null; onPrepare: () => void }) {
   const t = useT(M);
-  if (local === 'checking') return <Notice>{t.checking}</Notice>;
-  if (local === 'available') return <Notice tone="scrub">{t.ready}</Notice>;
+  if (local === 'checking') return <p className="text-ink-soft">{t.checking}</p>;
+  if (local === 'available') return <p>{t.ready}</p>;
   if (local === 'downloadable' || local === 'downloading')
     return (
-      <Notice>
+      <>
         <p>{t.notYet}</p>
-        <div className="mt-3 flex items-center gap-3">
-          <Button tone="secondary" onClick={onPrepare} disabled={preparing !== null}>
-            {preparing === null ? t.download : t.downloading(Math.round(preparing * 100))}
-          </Button>
-        </div>
-      </Notice>
+        <Button tone="secondary" className="mt-3" onClick={onPrepare} disabled={preparing !== null}>
+          {preparing === null ? t.download : t.downloading(Math.round(preparing * 100))}
+        </Button>
+      </>
     );
   return (
-    <Notice>
+    <p>
       {t.none}{' '}
       <a className="underline underline-offset-2" href="https://developer.chrome.com/docs/ai/get-started" target="_blank" rel="noreferrer">
         {t.needsChrome}
       </a>
       .
-    </Notice>
+    </p>
   );
 }
 
@@ -292,9 +353,9 @@ function FilePick({
   onPick: (n: string) => void;
 }) {
   return (
-    <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-rule-strong bg-sheet px-4 py-3 hover:border-ink">
-      <span className="text-sm font-semibold">{label}</span>
-      <span className="truncate text-sm text-ink-faint">{picked || hint}</span>
+    <label className="flex cursor-pointer flex-col gap-0.5 rounded-md border border-dashed border-rule-strong bg-sheet px-4 py-3 hover:border-night focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-ballpoint">
+      <span className="text-[16px] font-semibold">{label}</span>
+      <span className={`truncate text-[15px] ${picked ? 'font-mono text-ink' : 'text-ink-faint'}`}>{picked || hint}</span>
       <input
         ref={inputRef}
         type="file"

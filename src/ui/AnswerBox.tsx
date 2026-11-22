@@ -33,8 +33,8 @@ export function AnswerBox({ refId, owner, compact = false }: { refId: string; ow
   const [text, setText] = useState('');
   if (answer)
     return (
-      <p className="flex items-start gap-1.5 text-[15px] text-scrub">
-        <Check size={16} className="mt-0.5 shrink-0" />
+      <p className="flex items-start gap-1.5 text-[16px]">
+        <Check size={18} strokeWidth={2.5} className="mt-[3px] shrink-0" aria-hidden />
         <span>
           <strong className="font-semibold">{t.answerFrom(owner)}</strong> {answer.text}{' '}
           <span className="text-sm text-ink-faint">
@@ -59,7 +59,7 @@ export function AnswerBox({ refId, owner, compact = false }: { refId: string; ow
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={t.placeholder(owner)}
-        className="min-w-[16rem] flex-1 rounded-md border border-rule-strong bg-sheet px-3 py-1.5 text-[15px]"
+        className="min-h-[42px] min-w-0 flex-1 basis-[16rem] rounded-md border border-rule-strong bg-sheet px-3 py-1.5 text-[16px]"
       />
       <Button tone="secondary" type="submit" disabled={!text.trim()}>
         {t.record}
