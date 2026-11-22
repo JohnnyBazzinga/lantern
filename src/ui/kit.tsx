@@ -11,7 +11,7 @@ const M = msgs(
     rule: 'Rule',
     blank: '(blank)',
     decided: (done: number, total: number) => `${done} of ${total} rows decided`,
-    waiting: (n: number) => `${n} waiting for a nurse`,
+    waiting: (n: number) => `${n} waiting for a nurse's answer`,
     steps: 'Steps',
     step: { columns: 'Columns', review: 'Review', worklist: 'Worklist' },
     stepDone: 'done',
@@ -22,7 +22,7 @@ const M = msgs(
     rule: 'Regra',
     blank: '(em branco)',
     decided: (done, total) => `${done} de ${total} linhas decididas`,
-    waiting: (n) => `${n} à espera da enfermagem`,
+    waiting: (n) => `${n} à espera de resposta da enfermagem`,
     steps: 'Passos',
     step: { columns: 'Colunas', review: 'Revisão', worklist: 'Lista para registo' },
     stepDone: 'feito',
@@ -63,10 +63,10 @@ export function Button({
   ...p
 }: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'secondary' | 'quiet' | 'pen'; size?: 'md' | 'lg' }) {
   const tones = {
-    primary: 'bg-night text-white hover:bg-night-soft disabled:bg-ink-faint',
-    secondary: 'border border-rule-strong bg-sheet text-ink hover:border-night',
-    quiet: 'text-ink-soft underline-offset-4 hover:text-ink hover:underline',
-    pen: 'border border-pen text-pen bg-sheet hover:bg-pen-wash',
+    primary: 'bg-night text-white hover:bg-night-soft active:bg-ink disabled:bg-ink-faint',
+    secondary: 'border border-rule-strong bg-sheet text-ink hover:border-night active:bg-gutter disabled:border-rule disabled:text-ink-faint',
+    quiet: 'text-ink-soft underline-offset-4 hover:text-ink hover:underline active:text-night',
+    pen: 'border border-pen text-pen bg-sheet hover:bg-pen-wash active:bg-pen-wash',
   } as const;
   const sizes = { md: 'min-h-[42px] px-4 py-2 text-[16px]', lg: 'min-h-[56px] px-7 py-3.5 text-[19px]' } as const;
   return (
@@ -197,9 +197,10 @@ export type StepKey = 'columns' | 'review' | 'worklist';
 const STEPS: StepKey[] = ['columns', 'review', 'worklist'];
 
 /** The path through a review. It is a real sequence, so it is numbered; a step that can be opened is a button. */
-export function Steps({ current, onGo = {} }: { current: StepKey; onGo?: Partial<Record<StepKey, () => void>> }) {
+export function Steps({ current, onGo = {} }: { current: StepKey | 'after'; onGo?: Partial<Record<StepKey, () => void>> }) {
   const t = useT(M);
-  const at = STEPS.indexOf(current);
+  // 'after': every step is done (the drill's result page)
+  const at = current === 'after' ? STEPS.length : STEPS.indexOf(current);
   return (
     <nav aria-label={t.steps} className="no-print">
       <ol className="flex items-center gap-x-0.5 text-[15px] sm:gap-x-1.5">

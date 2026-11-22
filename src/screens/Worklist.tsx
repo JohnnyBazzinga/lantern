@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Copy, Download, Printer } from 'lucide-react';
+import { Check, Copy, Download, Printer, TriangleAlert } from 'lucide-react';
 import { sessionTitle, useSession } from '../app/session';
 import type { Entered } from '../app/store';
 import { categoryLabel } from '../core/clinical';
@@ -7,9 +7,10 @@ import { ct, ptAt } from '../core/i18n';
 import type { Act } from '../core/types';
 import { buildWorklist, defaultNightOf, formatDate, worklistCsv, type WorklistItem, type WorklistQuestion } from '../core/worklist';
 import { locale, msgs } from '../i18n/lang';
-import { LangToggle, useLang, useT } from '../i18n/react';
+import { useLang, useT } from '../i18n/react';
 import { AnswerBox } from '../ui/AnswerBox';
-import { Button, LanternMark, Notice } from '../ui/kit';
+import { AppBar, Button, Notice, Steps, usePageTitle } from '../ui/kit';
+import { Tally } from '../ui/Tally';
 
 const M = msgs(
   {
@@ -23,7 +24,18 @@ const M = msgs(
     ready: (n: number) => `${n} ${n === 1 ? 'act is' : 'acts are'} ready for re-entry. `,
     forYou: (n: number) => `The clinical secretary enters the ${n === 1 ? 'admission or transfer' : `${n} admissions and transfers`}. `,
     rest: 'Each nurse enters their own clinical acts as late entries.',
-    questionsFirst: (n: number) => ` ${n} ${n === 1 ? 'question needs' : 'questions need'} an answer first.`,
+    questionsFirst: (n: number) => ` ${n} ${n === 1 ? 'question is' : 'questions are'} waiting for a nurse's answer.`,
+    sumReady: (n: number): string => (n === 1 ? 'act ready to enter' : 'acts ready to enter'),
+    sumWaiting: (n: number, rows: number) => `${n === 1 ? 'question' : 'questions'} waiting for a nurse's answer (${rows} ${rows === 1 ? 'row' : 'rows'})`,
+    sumEntered: (n: number) => `of ${n} ticked as entered in the record`,
+    people: 'Who enters what',
+    clerkTab: 'Clinical secretary',
+    counts: (acts: number, questions: number) => [acts ? `${acts} ${acts === 1 ? 'act' : 'acts'}` : '', questions ? `${questions} ${questions === 1 ? 'question' : 'questions'}` : ''].filter(Boolean).join(', '),
+    nothingYet: (who: string) => `Nothing for ${who} to enter yet: the rows are waiting for the answers above.`,
+    printHead: (who: string, night: string) => `Re-entry worklist for ${who}. Night of ${night}.`,
+    printSign: 'Entered by: ____________________  Signed: ____________  Date: __________',
+    done: 'When re-entry is done',
+    pageTitle: 'Worklist',
     readyNotEntered: ' Ready is not entered: tick each act once it is in the record.',
     nightStarted: 'The outage night started on',
     days: (d1: string, d2: string) => `Times from 12:00 are ${d1}, times before 12:00 are ${d2}.`,
@@ -41,8 +53,8 @@ const M = msgs(
     questions: 'Questions for the nurses',
     questionsText:
       'One question per problem, with the rows it is about. Ask in person or by phone, or print this page to be answered and signed. Write the answer here, then decide the row in the review.',
-    forOwner: (owner: string, n: number) => `For ${owner} (${n})`,
-    clerk: 'For you: admissions and transfers',
+    forOwner: (owner: string, n: number) => `Questions for ${owner} (${n})`,
+    clerk: 'Clinical secretary: admissions and transfers',
     clerkText: 'Administrative entries a clinical secretary makes, with the original time.',
     toEnter: (who: string) => `To be entered by ${who}`,
     toEnterLate: (who: string, n: number) => `To be entered by ${who}, as late entries (${n})`,
@@ -84,7 +96,18 @@ const M = msgs(
     ready: (n) => `A lista tem ${n} ${n === 1 ? 'ato' : 'atos'} para registo. `,
     forYou: (n) => `O secretariado clínico regista ${n === 1 ? 'a admissão ou transferência' : `as ${n} admissões e transferências`}. `,
     rest: 'Cada elemento da equipa de enfermagem faz o registo diferido dos seus próprios atos clínicos.',
-    questionsFirst: (n) => ` ${n} ${n === 1 ? 'pergunta precisa' : 'perguntas precisam'} de resposta primeiro.`,
+    questionsFirst: (n) => ` ${n} ${n === 1 ? 'pergunta está' : 'perguntas estão'} à espera de resposta da enfermagem.`,
+    sumReady: (n) => (n === 1 ? 'ato pronto a registar' : 'atos prontos a registar'),
+    sumWaiting: (n, rows) => `${n === 1 ? 'pergunta' : 'perguntas'} à espera de resposta da enfermagem (${rows} ${rows === 1 ? 'linha' : 'linhas'})`,
+    sumEntered: (n) => `de ${n} marcados como registados no sistema`,
+    people: 'Quem regista o quê',
+    clerkTab: 'Secretariado clínico',
+    counts: (acts, questions) => [acts ? `${acts} ${acts === 1 ? 'ato' : 'atos'}` : '', questions ? `${questions} ${questions === 1 ? 'pergunta' : 'perguntas'}` : ''].filter(Boolean).join(', '),
+    nothingYet: (who) => `Ainda nada a registar por ${who}: as linhas aguardam as respostas acima.`,
+    printHead: (who, night) => `Lista para registo de ${who}. Noite de ${night}.`,
+    printSign: 'Registado por: ____________________  Assinatura: ____________  Data: __________',
+    done: 'Quando o registo estiver feito',
+    pageTitle: 'Lista para registo',
     readyNotEntered: ' Pronto não quer dizer registado: marque cada ato quando já estiver no sistema.',
     nightStarted: 'A noite da falha começou em',
     days: (d1, d2) => `As horas a partir das 12:00 são de ${d1}; as anteriores às 12:00 são de ${d2}.`,
@@ -102,8 +125,8 @@ const M = msgs(
     questions: 'Perguntas para a enfermagem',
     questionsText:
       'Uma pergunta por problema, com as linhas a que diz respeito. Pergunte pessoalmente ou por telefone, ou imprima esta página para ser respondida e assinada. Registe aqui a resposta. Depois, volte à revisão e decida se o ato entra na lista.',
-    forOwner: (owner, n) => `Para ${owner} (${n})`,
-    clerk: 'Para si: admissões e transferências',
+    forOwner: (owner, n) => `Perguntas para ${owner} (${n})`,
+    clerk: 'Secretariado clínico: admissões e transferências',
     clerkText: 'Registos administrativos, feitos pelo secretariado clínico, com a hora original.',
     toEnter: (who) => `A registar por ${who}`,
     toEnterLate: (who, n) => `A registar por ${who}, como registos diferidos (${n})`,
@@ -155,6 +178,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
   const t = useT(M);
   const lang = useLang();
   const session = s.session!;
+  usePageTitle(t.pageTitle);
   const nightOf = session.nightOf ?? defaultNightOf(session.createdAt);
   const wl = useMemo(() => {
     const acts = actsWithIdentity(session.acts, session.identity, session.identityDecisions);
@@ -164,12 +188,24 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
   const [clearing, setClearing] = useState(false);
   const allowExport = s.config?.allowExport ?? true;
 
-  const clerk = wl.ready.filter((r) => r.enteredBy.role === 'clerk');
-  const nurses = groupBy(
-    wl.ready.filter((r) => r.enteredBy.role === 'nurse'),
-    (r) => r.enteredBy.who,
-  );
+  // One list per person who enters: the clinical secretary (admissions and transfers), then each nurse by
+  // initials, with the questions that nurse still has to answer. It is named by role, never "you": the
+  // person reviewing may not be the person entering.
+  const people = useMemo(() => {
+    const CLERK = '\u0000clerk';
+    const m = new Map<string, { key: string; tab: string; who: string; clerk: boolean; acts: WorklistItem[]; questions: WorklistQuestion[] }>();
+    const at = (key: string, tab: string, who: string, clerk = false) => m.get(key) ?? m.set(key, { key, tab, who, clerk, acts: [], questions: [] }).get(key)!;
+    for (const r of wl.ready)
+      if (r.enteredBy.role === 'clerk') at(CLERK, t.clerkTab, r.enteredBy.who, true).acts.push(r);
+      else at(r.documentedBy || r.enteredBy.who, r.documentedBy || capital(r.enteredBy.who), r.enteredBy.who).acts.push(r);
+    for (const q of wl.questions) at(q.owner, capital(q.owner), q.owner).questions.push(q);
+    return [...m.values()].sort((x, y) => Number(y.clerk) - Number(x.clerk));
+  }, [wl, t]);
+  const [tab, setTab] = useState<string | null>(null);
+  const current = people.find((p) => p.key === tab) ?? people[0];
+
   const entered = wl.ready.filter((r) => session.entered[r.actId]).length;
+  const waitingRows = new Set(wl.questions.flatMap((q) => q.actIds)).size;
   const nextDay = formatDate(new Date(new Date(`${nightOf}T12:00`).getTime() + 86400_000).toISOString().slice(0, 10));
 
   const download = () => {
@@ -179,194 +215,231 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
     a.download = t.fileName(session.kind === 'drill', wl.undecided.length > 0, nightOf);
     a.click();
   };
+  const toResult = session.kind === 'drill' && wl.undecided.length === 0;
+  const field = 'min-h-[42px] rounded-md border border-rule-strong bg-sheet px-2.5 py-1.5 text-[16px]';
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pb-20 pt-8 sm:px-8">
-      <header className="no-print mb-10 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <LanternMark />
-          <span className="text-lg font-semibold">Lantern</span>
-          <span className="ml-2 text-ink-soft">{sessionTitle(session.kind)}</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button tone="quiet" onClick={onBack}>
-            {t.back}
-          </Button>
-          <Button tone="secondary" onClick={() => setClearing(true)}>
-            {t.finish}
-          </Button>
-          <LangToggle className="ml-1" />
-        </div>
-      </header>
+    <div className="flex min-h-full flex-col">
+      <AppBar title={sessionTitle(session.kind)} steps={<Steps current="worklist" onGo={{ review: onBack }} />}>
+        <Tally kind={session.kind} />
+      </AppBar>
+      <main className="@container mx-auto w-full max-w-[1280px] flex-1 px-4 pb-16 pt-7 sm:px-8 sm:pt-10 print:max-w-none print:p-0">
+        <h1 className="font-display text-[34px] font-bold leading-[1.08] tracking-[-0.01em] text-night sm:text-[44px] print:text-[22px]">{t.title}</h1>
 
-      {clearing && (
-        <div className="no-print mb-8">
-          <Notice tone="pen">
-            {t.clearText}
-            <span className="mt-3 flex flex-wrap gap-2">
-              <Button tone="pen" onClick={() => void s.reset()}>
-                {t.remove}
-              </Button>
-              <Button tone="quiet" onClick={() => setClearing(false)}>
-                {t.cancel}
-              </Button>
-            </span>
-          </Notice>
-        </div>
-      )}
-
-      <h1 className="text-3xl font-semibold tracking-[-0.01em]">{t.title}</h1>
-      <p className="mt-3 max-w-[68ch] text-lg text-ink-soft">
-        {t.ready(wl.ready.length)}
-        {clerk.length > 0 && t.forYou(clerk.length)}
-        {t.rest}
-        {wl.questions.length > 0 && t.questionsFirst(wl.questions.length)}
-        {t.readyNotEntered}
-      </p>
-
-      <div className="no-print mt-5 flex flex-wrap items-end gap-x-6 gap-y-3 text-[15px]">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-ink-soft">{t.nightStarted}</span>
-          <input
-            type="date"
-            value={nightOf}
-            onChange={(e) => e.target.value && s.setNightOf(e.target.value)}
-            className="rounded-md border border-rule-strong bg-sheet px-2 py-1"
-          />
-        </label>
-        <span className="pb-1.5 text-sm text-ink-soft">{t.days(formatDate(nightOf), nextDay)}</span>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-ink-soft">{t.initials}</span>
-          <input
-            value={session.reviewer ?? ''}
-            onChange={(e) => s.setReviewer(e.target.value)}
-            className="w-28 rounded-md border border-rule-strong bg-sheet px-2 py-1 uppercase"
-            maxLength={6}
-          />
-        </label>
-      </div>
-
-      {wl.undecided.length > 0 && (
-        <div className="no-print mt-6">
-          <Notice tone="pen">
-            {t.incomplete(wl.undecided.length)}{' '}
-            <Button tone="secondary" className="ml-2" onClick={onBack}>
-              {t.finishReview}
-            </Button>
-          </Notice>
-        </div>
-      )}
-
-      <div className="no-print mt-6 flex flex-wrap items-center gap-3">
-        {allowExport && (
-          <>
-            <Button onClick={download}>
-              <Download size={16} /> {t.csv}
-            </Button>
-            <Button tone="secondary" onClick={() => window.print()}>
-              <Printer size={16} /> {t.print}
-            </Button>
-          </>
-        )}
-        {session.kind === 'drill' && wl.undecided.length === 0 && (
-          <Button tone="secondary" onClick={() => { s.finish(); onResult(); }}>
-            {t.result}
-          </Button>
-        )}
-        <span className="text-sm tabular-nums text-ink-soft">{t.ticked(entered, wl.ready.length)}</span>
-      </div>
-      {allowExport && (
-        <p className="no-print mt-2 max-w-[70ch] text-sm text-ink-faint">
-          {session.kind === 'drill' ? t.drillFile : t.realFile}
-        </p>
-      )}
-
-      {wl.questions.length > 0 && (
-        <section className="mt-10" aria-labelledby="questions">
-          <h2 id="questions" className="mb-1 text-xl font-semibold text-pen">
-            {t.questions}
-          </h2>
-          <p className="mb-4 max-w-[68ch] text-ink-soft">{t.questionsText}</p>
-          {groupBy(wl.questions, (q) => q.owner).map(([owner, qs]) => (
-            <div key={owner} className="mb-6 break-inside-avoid">
-              <h3 className="mb-2 border-b border-pen/40 pb-1 text-lg font-semibold">
-                {t.forOwner(owner, qs.length)}
-              </h3>
-              <ul className="space-y-3">
-                {qs.map((q) => (
-                  <QuestionCard key={q.ref} q={q} />
-                ))}
-              </ul>
+        {/* the three numbers that say where re-entry stands; "ready" and "entered" are kept apart on purpose */}
+        <dl className="mt-5 grid border-y border-rule-strong sm:grid-cols-3 print:hidden">
+          {[
+            { n: wl.ready.length, label: t.sumReady(wl.ready.length), tone: '' },
+            { n: wl.questions.length, label: t.sumWaiting(wl.questions.length, waitingRows), tone: wl.questions.length ? 'text-pen' : '' },
+            { n: entered, label: t.sumEntered(wl.ready.length), tone: '' },
+          ].map((x, i) => (
+            <div key={i} className={`flex items-baseline gap-3 py-3 sm:px-5 sm:first:pl-0 ${i ? 'border-t border-rule sm:border-l sm:border-t-0' : ''}`}>
+              <dd className={`text-[34px] font-extrabold leading-none tabular-nums ${x.tone || 'text-night'}`}>{x.n}</dd>
+              <dt className={`text-[16px] leading-snug ${x.tone || 'text-ink-soft'}`}>{x.label}</dt>
             </div>
           ))}
-        </section>
-      )}
+        </dl>
+        <p className="mt-4 max-w-[76ch] text-[17px] text-ink-soft print:hidden">
+          {t.rest}
+          {t.readyNotEntered}
+        </p>
 
-      {clerk.length > 0 && (
-        <section className="mt-10" aria-labelledby="clerk">
-          <h2 id="clerk" className="text-xl font-semibold">
-            {t.clerk}
+        {wl.undecided.length > 0 && (
+          <div className="no-print mt-5 max-w-[76ch]">
+            <Notice tone="pen">
+              {t.incomplete(wl.undecided.length)}{' '}
+              <Button tone="secondary" className="ml-2" onClick={onBack}>
+                {t.finishReview}
+              </Button>
+            </Notice>
+          </div>
+        )}
+
+        <div className="no-print mt-6 flex flex-wrap items-end gap-x-6 gap-y-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {toResult && (
+              <Button
+                onClick={() => {
+                  s.finish();
+                  onResult();
+                }}
+              >
+                {t.result}
+              </Button>
+            )}
+            {allowExport && (
+              <>
+                <Button tone={toResult ? 'secondary' : 'primary'} onClick={download}>
+                  <Download size={17} aria-hidden /> {t.csv}
+                </Button>
+                <Button tone="secondary" onClick={() => window.print()}>
+                  <Printer size={17} aria-hidden /> {t.print}
+                </Button>
+              </>
+            )}
+          </div>
+          <label className="flex flex-col gap-1 text-[15px] text-ink-soft">
+            {t.nightStarted}
+            <input type="date" value={nightOf} onChange={(e) => e.target.value && s.setNightOf(e.target.value)} className={`${field} text-ink`} />
+          </label>
+          <label className="flex flex-col gap-1 text-[15px] text-ink-soft">
+            {t.initials}
+            <input value={session.reviewer ?? ''} onChange={(e) => s.setReviewer(e.target.value)} className={`${field} w-28 uppercase text-ink`} maxLength={6} />
+          </label>
+        </div>
+        <p className="no-print mt-2 max-w-[80ch] text-[15px] text-ink-faint">
+          {t.days(formatDate(nightOf), nextDay)} {allowExport && (session.kind === 'drill' ? t.drillFile : t.realFile)}
+        </p>
+
+        {people.length > 0 && (
+          <>
+            <div role="tablist" aria-label={t.people} className="no-print mt-9 flex flex-wrap gap-x-1 gap-y-1 border-b border-rule-strong">
+              {people.map((p) => {
+                const on = p.key === current?.key;
+                return (
+                  <button
+                    key={p.key}
+                    role="tab"
+                    type="button"
+                    aria-selected={on}
+                    onClick={() => setTab(p.key)}
+                    className={`-mb-px flex items-baseline gap-2 border-b-[3px] px-3 py-2 text-left ${on ? 'border-night text-night' : 'border-transparent text-ink-soft hover:text-night'}`}
+                  >
+                    <span className="text-[19px] font-extrabold tracking-[-0.01em]">{p.tab}</span>
+                    <span className="text-[15px] tabular-nums">
+                      {t.counts(p.acts.length, 0)}
+                      {p.questions.length > 0 && (
+                        <span className="text-pen">
+                          {p.acts.length ? ', ' : ''}
+                          {t.counts(0, p.questions.length)}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* on screen, one person at a time; on paper, everyone, each on a page of their own */}
+            {people.map((p) => (
+              <section key={p.key} role="tabpanel" aria-label={p.tab} className={`${p.key === current?.key ? '' : 'hidden'} break-before-page pt-7 print:block print:pt-0`}>
+                <p className="print-only mb-4 border-b border-black pb-2 text-[13px] font-semibold">{t.printHead(p.who, formatDate(nightOf))}</p>
+                {p.questions.length > 0 && (
+                  <div className="mb-9">
+                    <h2 className="text-[21px] font-extrabold tracking-[-0.01em] text-pen">{t.forOwner(p.tab, p.questions.length)}</h2>
+                    <p className="mb-4 mt-1 max-w-[76ch] text-[16px] text-ink-soft print:hidden">{t.questionsText}</p>
+                    <ul className="space-y-3">
+                      {p.questions.map((q) => (
+                        <QuestionCard key={q.ref} q={q} />
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {p.acts.length > 0 ? (
+                  <>
+                    <h2 className="text-[21px] font-extrabold tracking-[-0.01em] text-night">{p.clerk ? t.clerk : t.toEnterLate(p.who, p.acts.length)}</h2>
+                    <p className="mb-4 mt-1 max-w-[80ch] text-[16px] text-ink-soft">
+                      {p.clerk ? (
+                        t.clerkText
+                      ) : (
+                        <>
+                          {t.nurseText} <span className="font-mono text-[15px] tracking-[-0.015em] text-ink">{p.acts[0]!.lateEntry}</span>
+                        </>
+                      )}
+                    </p>
+                    <ActsTable rows={p.acts} />
+                  </>
+                ) : (
+                  <p className="max-w-[76ch] text-ink-soft">{t.nothingYet(p.who)}</p>
+                )}
+                <p className="print-only mt-8 text-[13px]">{t.printSign}</p>
+              </section>
+            ))}
+          </>
+        )}
+
+        <section className="mt-14 max-w-[80ch] border-t border-rule-strong pt-7 print:hidden" aria-labelledby="keep">
+          <h2 id="keep" className="text-[21px] font-extrabold tracking-[-0.01em] text-night">
+            {t.keep}
           </h2>
-          <p className="mb-3 max-w-[68ch] text-ink-soft">{t.clerkText}</p>
-          <ActsTable rows={clerk} />
+          <p className="mt-1 text-[16px] text-ink-soft">{t.keepText}</p>
+          <ul className="mt-2 space-y-1 text-[15px]">
+            {session.files.map((f) => (
+              <li key={f.id}>
+                <span className="font-mono tracking-[-0.015em]">{f.name}</span>{' '}
+                <span className="text-ink-soft">{t.fileLine(ct().version(f.versionLabel), f.rows.length, f.hash.slice(0, 12))}</span>
+              </li>
+            ))}
+          </ul>
         </section>
-      )}
 
-      {nurses.map(([who, rows]) => (
-        <section key={who} className="mt-10 break-before-page" aria-label={t.toEnter(who)}>
-          <h2 className="text-xl font-semibold">{t.toEnterLate(who, rows.length)}</h2>
-          <p className="mb-3 max-w-[70ch] text-ink-soft">
-            {t.nurseText}{' '}
-            <span className="font-mono text-[14px]">{rows[0]!.lateEntry}</span>
-          </p>
-          <ActsTable rows={rows} />
+        <AuditTrail />
+
+        <section className="no-print mt-10 max-w-[80ch]" aria-labelledby="done">
+          <h2 id="done" className="text-[21px] font-extrabold tracking-[-0.01em] text-night">
+            {t.done}
+          </h2>
+          {clearing ? (
+            <div className="mt-3 border-l-4 border-pen py-1 pl-4">
+              <p>{t.clearText}</p>
+              <span className="mt-3 flex flex-wrap gap-2">
+                <Button tone="pen" onClick={() => void s.reset()}>
+                  {t.remove}
+                </Button>
+                <Button tone="quiet" onClick={() => setClearing(false)}>
+                  {t.cancel}
+                </Button>
+              </span>
+            </div>
+          ) : (
+            <Button tone="secondary" className="mt-3" onClick={() => setClearing(true)}>
+              {t.finish}
+            </Button>
+          )}
         </section>
-      ))}
+      </main>
+    </div>
+  );
+}
 
-      <section className="mt-12 max-w-[72ch]" aria-labelledby="keep">
-        <h2 id="keep" className="text-xl font-semibold">
-          {t.keep}
-        </h2>
-        <p className="mt-1 text-ink-soft">{t.keepText}</p>
-        <ul className="mt-2 space-y-1 text-[15px]">
-          {session.files.map((f) => (
-            <li key={f.id}>
-              <span className="font-mono">{f.name}</span> <span className="text-ink-soft">{t.fileLine(ct().version(f.versionLabel), f.rows.length, f.hash.slice(0, 12))}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+const capital = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
-      <AuditTrail />
-    </main>
+/** A caution for whoever enters the act (a fall needs an incident report, a controlled drug the register): prominent, but ink, because it is not a decision. */
+function Caution({ children }: { children: string }) {
+  return (
+    <span className="mt-1 flex items-start gap-1.5 text-[15px] font-semibold text-ink">
+      <TriangleAlert size={16} className="mt-[3px] shrink-0" aria-hidden /> {children}
+    </span>
   );
 }
 
 function QuestionCard({ q }: { q: WorklistQuestion }) {
   const t = useT(M);
+  // the red rule at the left edge is the same mark as in the review: this needs an answer
   return (
-    <li className="rounded-[3px] border border-pen/40 bg-sheet px-4 py-3">
-      <p className="text-[15px]">
-        <span className="font-semibold">{q.patientName || t.noName}</span>
-        {q.patientId && <span className="ml-2 text-ink-soft">{q.patientId}</span>}
-        {q.bed && <span className="ml-2 text-ink-soft">{t.bed(q.bed)}</span>}
-        <span className="ml-2 text-ink-soft">{q.time ? `${formatDate(q.date)} ${q.time}` : t.noTimeWritten}</span>
+    <li className="break-inside-avoid border border-rule-strong border-l-4 border-l-pen bg-sheet px-4 py-3">
+      <p className="flex flex-wrap items-baseline gap-x-3 text-[16px] text-ink-soft">
+        <span className="text-[19px] font-semibold text-ink">{q.patientName || t.noName}</span>
+        {q.patientId && <span className="tabular-nums">{q.patientId}</span>}
+        {q.bed && <span>{t.bed(q.bed)}</span>}
+        <span className="tabular-nums">{q.time ? `${formatDate(q.date)} ${q.time}` : t.noTimeWritten}</span>
       </p>
-      <ul className="mt-1.5 space-y-0.5">
+      <ul className="mt-2 border border-rule">
         {q.rows.map((r) => (
-          <li key={r.source} className="text-[15px]">
-            <span className="font-mono">{r.text || t.blank}</span>
-            {r.notes && <span className="font-mono text-ink-soft"> | {r.notes}</span>}
-            <span className="ml-2 text-sm text-ink-faint">
+          <li key={r.source} className="grid border-b border-rule last:border-b-0 sm:grid-cols-[11rem_minmax(0,1fr)]">
+            <span className="bg-gutter px-3 py-1.5 text-[14px] text-ink-soft">
               {r.source}
               {r.by && t.by(r.by)}
+            </span>
+            <span className="px-3 py-1.5 font-mono text-[16px] tracking-[-0.015em]">
+              {r.text || <span className="font-sans text-ink-faint">{t.blank}</span>}
+              {r.notes && <span className="text-ink-soft"> | {r.notes}</span>}
             </span>
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[15px] font-semibold">{q.question}</p>
+      <p className="mt-2.5 max-w-[86ch] text-[17px] font-semibold">{q.question}</p>
       <AnswerBox refId={q.ref} owner={q.owner} />
-      <p className="print-only mt-3 text-[14px]">{t.printLine}</p>
+      <p className="print-only mt-3 text-[13px]">{t.printLine}</p>
     </li>
   );
 }
@@ -380,77 +453,75 @@ function ActsTable({ rows }: { rows: WorklistItem[] }) {
     <div className="space-y-6">
       {groupBy(rows, (r) => r.patientKey ?? r.patientName).map(([key, list]) => (
         <div key={key} className="break-inside-avoid">
-          <h3 className="mb-1 flex flex-wrap items-baseline gap-x-3 border-b border-rule-strong pb-1">
-            <span className="text-lg font-semibold">{list[0]!.patientName || t.noNameShort}</span>
-            <span className="text-ink-soft">{list[0]!.patientId}</span>
-            {list[0]!.bed && <span className="text-ink-soft">{t.bed(list[0]!.bed)}</span>}
+          <h3 className="mb-1.5 flex flex-wrap items-baseline gap-x-3 text-[16px] text-ink-soft">
+            <span className="text-[19px] font-semibold text-ink">{list[0]!.patientName || t.noNameShort}</span>
+            <span className="tabular-nums">{list[0]!.patientId}</span>
+            {list[0]!.bed && <span>{t.bed(list[0]!.bed)}</span>}
           </h3>
-          <table className="w-full border-collapse text-left">
-            <tbody>
-              {list.map((r) => {
-                const tick = session.entered[r.actId] as Entered | boolean | undefined;
-                return (
-                  <tr key={r.actId} className="border-b border-rule align-top last:border-b-0">
-                    <td className="w-10 py-2">
-                      <input
-                        type="checkbox"
-                        aria-label={t.entered(r.act)}
-                        checked={!!tick}
-                        onChange={() => s.toggleEntered(r.actId)}
-                        className="h-4 w-4 accent-[var(--color-scrub)]"
-                      />
-                    </td>
-                    <td className="w-32 py-2 font-mono text-[14px] tabular-nums">
-                      {r.time ? (
-                        <>
-                          <span className="block text-ink-soft">{formatDate(r.date)}</span>
-                          {r.time}
-                        </>
-                      ) : (
-                        <span className="text-pen">{t.noTime}</span>
-                      )}
-                    </td>
-                    <td className="py-2">
-                      <span className={`font-mono text-[15px] ${tick ? 'text-ink-faint line-through' : ''}`}>{r.act}</span>
-                      {r.highAlert && <span className="ml-2 rounded-sm border border-pen/50 px-1 text-[12px] font-semibold text-pen">{t.highAlert}</span>}
-                      {r.corrected.length > 0 && (
-                        <span className="mt-0.5 block text-sm text-ink-soft">
-                          {t.corrected}{' '}
-                          {r.corrected.map((c) => (
-                            <span key={c.field}>
-                              <s className="text-ink-faint">{c.from}</s> {c.to} <span className="text-ink-faint">({c.basis})</span>{' '}
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                      {r.confirmBy && <span className="block text-sm font-semibold text-pen">{t.mustConfirm(r.confirmBy)}</span>}
-                      {r.note && <span className="block text-sm text-scrub">{r.note}</span>}
-                      {r.clinicalPartBy && <span className="block text-sm text-ink-soft">{t.obsBy(r.clinicalPartBy)}</span>}
-                      {r.followUp && <span className="block text-sm font-semibold text-pen">{r.followUp}</span>}
-                      {r.notes && <span className="block text-sm text-ink-soft">{r.notes}</span>}
-                      {tick && typeof tick === 'object' && (
-                        <span className="block text-sm text-scrub">
-                          {t.tickedAt(new Date(tick.at).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }), tick.by ?? '')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="w-28 py-2 text-sm text-ink-soft">{categoryLabel(r.category)}</td>
-                    <td className="w-44 py-2 text-right text-sm text-ink-faint">
-                      {r.source}
-                      <button
-                        className="no-print mt-1 flex w-full items-center justify-end gap-1 text-ballpoint hover:underline"
-                        onClick={() => {
-                          void navigator.clipboard?.writeText(r.lateEntry).then(() => setCopied(r.actId));
-                        }}
-                      >
-                        <Copy size={13} /> {copied === r.actId ? t.copied : t.copyNote}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <ul className="border border-rule-strong bg-sheet">
+            {list.map((r) => {
+              const tick = session.entered[r.actId] as Entered | boolean | undefined;
+              return (
+                <li key={r.actId} className="grid grid-cols-[2.75rem_minmax(0,1fr)] border-b border-rule last:border-b-0 @3xl:grid-cols-[2.75rem_7.5rem_minmax(0,1fr)_14rem]">
+                  <label className="row-span-3 flex cursor-pointer justify-center bg-gutter pt-3 @3xl:row-span-1">
+                    <input type="checkbox" aria-label={t.entered(r.act)} checked={!!tick} onChange={() => s.toggleEntered(r.actId)} className="h-5 w-5 accent-[var(--color-night)]" />
+                  </label>
+                  <div className="px-3 pt-2.5 text-[15px] tabular-nums @3xl:pb-2.5">
+                    {r.time ? (
+                      <>
+                        <span className="text-ink-soft @3xl:block">{formatDate(r.date)} </span>
+                        <span className="text-[17px] font-semibold">{r.time}</span>
+                      </>
+                    ) : (
+                      <span className="text-pen">{t.noTime}</span>
+                    )}
+                  </div>
+                  <div className="px-3 py-2 @3xl:border-l @3xl:border-rule @3xl:py-2.5">
+                    <span className={`font-mono text-[16px] tracking-[-0.015em] ${tick ? 'text-ink-faint line-through' : ''}`}>{r.act}</span>
+                    {r.highAlert && (
+                      <span className="ml-2 inline-flex items-center gap-1 whitespace-nowrap rounded-[4px] border border-ink px-1.5 align-[1px] text-[13px] font-semibold">
+                        <TriangleAlert size={12} aria-hidden /> {t.highAlert}
+                      </span>
+                    )}
+                    {r.notes && <span className="block font-mono text-[15px] tracking-[-0.015em] text-ink-soft">{r.notes}</span>}
+                    {r.corrected.length > 0 && (
+                      <span className="mt-0.5 block text-[15px] text-ink-soft">
+                        {t.corrected}{' '}
+                        {r.corrected.map((c) => (
+                          <span key={c.field}>
+                            <s className="text-ink-faint">{c.from}</s> <span className="text-ink">{c.to}</span> <span className="text-ink-faint">({c.basis})</span>{' '}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    {r.confirmBy && <span className="mt-1 block text-[15px] font-semibold text-pen">{t.mustConfirm(r.confirmBy)}</span>}
+                    {r.note && <span className="mt-0.5 block text-[15px]">{r.note}</span>}
+                    {r.clinicalPartBy && <span className="mt-0.5 block text-[15px] text-ink-soft">{t.obsBy(r.clinicalPartBy)}</span>}
+                    {r.followUp && <Caution>{r.followUp}</Caution>}
+                    {tick && typeof tick === 'object' && (
+                      <span className="mt-1 flex items-center gap-1.5 text-[15px] text-ink-soft">
+                        <Check size={15} strokeWidth={2.5} aria-hidden />
+                        {t.tickedAt(new Date(tick.at).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }), tick.by ?? '')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="px-3 pb-2.5 text-[14px] text-ink-soft @3xl:border-l @3xl:border-rule @3xl:pt-2.5">
+                    <span className="block">{categoryLabel(r.category)}</span>
+                    <span className="block text-ink-faint">{r.source}</span>
+                    <button
+                      type="button"
+                      className="no-print mt-1 inline-flex items-center gap-1 text-[15px] text-ballpoint underline-offset-2 hover:underline"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(r.lateEntry).then(() => setCopied(r.actId));
+                      }}
+                    >
+                      {copied === r.actId ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />} {copied === r.actId ? t.copied : t.copyNote}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       ))}
     </div>
@@ -470,8 +541,8 @@ function AuditTrail() {
     a.click();
   };
   return (
-    <details className="no-print mt-12 max-w-[80ch]">
-      <summary className="cursor-pointer text-xl font-semibold">{t.audit(session.audit.length)}</summary>
+    <details className="no-print mt-10 max-w-[80ch]">
+      <summary className="cursor-pointer text-[21px] font-extrabold tracking-[-0.01em] text-night">{t.audit(session.audit.length)}</summary>
       <p className="mt-2 text-ink-soft">
         {t.auditText}{' '}
         <button className="text-ballpoint underline underline-offset-2" onClick={download}>
