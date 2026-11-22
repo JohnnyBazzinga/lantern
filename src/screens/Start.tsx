@@ -5,7 +5,7 @@ import { sessionTitle, useSession } from '../app/session';
 import { locale, msgs } from '../i18n/lang';
 import { LangToggle, useT } from '../i18n/react';
 import { nightMinutes } from '../core/text';
-import { Button, LanternMark, Notice, Route } from '../ui/kit';
+import { Button, LanternMark, Notice, Route, usePageTitle } from '../ui/kit';
 import { NightLine } from '../ui/NightLine';
 
 const M = msgs(
@@ -151,6 +151,7 @@ const M = msgs(
 export default function Start() {
   const s = useSession();
   const t = useT(M);
+  usePageTitle('');
   const [preparing, setPreparing] = useState<number | null>(null);
   const [prepError, setPrepError] = useState<string | null>(null);
   const census = useRef<HTMLInputElement>(null);

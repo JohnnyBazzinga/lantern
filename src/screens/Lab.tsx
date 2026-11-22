@@ -14,6 +14,7 @@ import { profileColumns } from '../core/profile';
 import { reconcileMapping } from '../core/mapping';
 import { mapColumnInput, mapColumnTask } from '../ai/prompts/v1/mapColumn';
 import { runDrillBench } from '../lab/drillBench';
+import { usePageTitle } from '../ui/kit';
 
 /**
  * Lab: the day-1 gate. Four spikes decide whether the product plan holds on real hardware.
@@ -38,6 +39,7 @@ interface SpikeState {
 const idle: SpikeState = { status: 'idle', lines: [] };
 
 export default function Lab() {
+  usePageTitle('Lab');
   const [env, setEnv] = useState<EnvironmentReport | null>(null);
   const [config, setConfig] = useState<LanternConfig | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
