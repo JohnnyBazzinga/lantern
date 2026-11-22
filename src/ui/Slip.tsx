@@ -122,7 +122,7 @@ export function censusRow(files: SourceFile[], patientId: string, label: string,
   };
 }
 
-const WIDTH: Record<Field, string> = { bed: '4rem', patient: '12.5rem', time: '5.75rem', what: 'auto', notes: '36%', by: '4.25rem' };
+const WIDTH: Record<Field, string> = { bed: '4rem', patient: '12.5rem', time: '5.75rem', what: 'auto', notes: '36%', by: '4.75rem' };
 const ORDER: Field[] = ['bed', 'patient', 'time', 'what', 'notes', 'by'];
 
 /**

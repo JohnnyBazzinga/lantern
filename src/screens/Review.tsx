@@ -36,6 +36,9 @@ const M = msgs(
       'local-unavailable': 'no AI model judged this pair',
     } as Record<EscalationReason, string>,
     pageTitle: 'Review',
+    rulesAlone: " No on-device AI ran on this PC: the suggestions come from Lantern's rules alone, and nothing was sent.",
+    cloudFailed:
+      'The second opinion did not arrive: the cloud model did not answer. Nothing was changed. Decide these comparisons yourself, or ask the nurse who wrote them.',
     arrival: (rows: number, items: number, copies: number) =>
       `Lantern compared ${rows} rows and left ${items} things to decide, most urgent first.${copies ? ` The ${copies} identical pairs at the end can be accepted in one click.` : ''}`,
     nothing: 'Nothing to review.',
@@ -163,6 +166,9 @@ const M = msgs(
       'local-unavailable': 'nenhum modelo de IA avaliou este par',
     },
     pageTitle: 'Revisão',
+    rulesAlone: ' Nenhuma IA local correu neste computador: as sugestões vêm só das regras do Lantern, e nada foi enviado.',
+    cloudFailed:
+      'A segunda opinião não chegou: o modelo na nuvem não respondeu. Nada foi alterado. Decida estas comparações na revisão, ou pergunte a quem as escreveu.',
     arrival: (rows, items, copies) =>
       `O Lantern comparou ${rows} linhas e deixou ${items} pontos para decidir, do mais urgente para o menos urgente.${copies ? ` Os ${copies} pares iguais, no fim, podem ser aceites de uma vez.` : ''}`,
     nothing: 'Nada para rever.',
@@ -382,9 +388,21 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
           {s.decidedCount === 0 && waitingItems.length === 0 && items.length > 0 && (
             <p className="border-b border-rule bg-gutter px-4 py-2.5 text-[16px] leading-snug sm:px-8">
               {t.arrival(session.acts.length, items.length, items.filter((i) => i.group === 'copies').length)}
+              {session.kind === 'import' && !session.candidates.some((c) => c.local) && t.rulesAlone}
             </p>
           )}
           {session.kind === 'drill' && s.escalated.size > 0 && !session.cloudAsked && <CloudOffer />}
+          {/* asked, and not one answer came back: say what happened and what to do, in the cloud's colour */}
+          {session.cloudAsked && !session.candidates.some((c) => c.cloud) && undecided.length > 0 && (
+            <p role="status" className="border-b border-ballpoint/25 bg-ballpoint-wash px-4 py-2.5 text-[16px] leading-snug sm:px-8">
+              <Route source="in_cloud" /> <span className="ml-1">{t.cloudFailed}</span>
+            </p>
+          )}
+          {s.error && (
+            <p role="alert" className="border-b border-pen/40 bg-pen-wash px-4 py-2.5 text-[16px] leading-snug sm:px-8">
+              {s.error}
+            </p>
+          )}
           {active ? <ItemView key={active.id} item={active} onDone={() => next(active)} /> : <p className="px-4 py-6 sm:px-8">{t.nothing}</p>}
         </main>
       </div>

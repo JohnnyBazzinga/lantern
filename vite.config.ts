@@ -43,7 +43,7 @@ export default defineConfig({
     preloadFonts(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'fixtures/**/*'],
+      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'fixtures/**/*'],
       manifest: {
         name: 'Lantern — downtime re-entry',
         short_name: 'Lantern',
@@ -52,7 +52,13 @@ export default defineConfig({
         theme_color: '#0f1b2d',
         background_color: '#f4f2ee',
         display: 'standalone',
-        icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+        // PNGs for the install prompt (rendered from the mark); the maskable one keeps the lantern inside the safe zone
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+        ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,csv,xlsx,json,woff2}'],

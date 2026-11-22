@@ -31,6 +31,10 @@ const M = msgs(
     hides:
       'Hidden in the two versions: three corrections, three rows lost when the sheet was sorted, four patient-identity problems, two entries only their author can explain, and three pairs that look alike but are separate acts. At the end you see what became of each.',
     pickFirst: 'Pick the earlier and the later version to open them.',
+    wrongType: (file: string) => `Lantern cannot read ${file}: it is not a spreadsheet. Pick an .xlsx or .csv file exported from the log.`,
+    importFailed: 'Lantern could not open these files. Check that each one is an .xlsx or .csv copy of the log, then pick them again. Nothing was uploaded.',
+    drillFailed: 'The drill could not be opened. Reload the page and try again; if you are offline, open Lantern once with a connection first.',
+    details: 'What the browser reported:',
     ownTitle: 'Use your own files',
     ownText:
       "Pick two versions of the same downtime log, and the census if you have one. They are read in this browser and never uploaded; comparisons run on this device only. Even without an on-device model, Lantern flags identical rows, corrections, possible repeat doses and identity problems. The reviewer decides whatever is left open.",
@@ -95,6 +99,10 @@ const M = msgs(
     hides:
       'Escondidos nas duas versões: três correções, três linhas perdidas quando a folha foi ordenada, quatro dúvidas de identificação, dois registos que só quem os escreveu pode explicar e três pares parecidos que são atos diferentes. No fim, vê o que aconteceu a cada um.',
     pickFirst: 'Escolha a versão anterior e a posterior para as abrir.',
+    wrongType: (file) => `O Lantern não consegue ler ${file}: não é uma folha de cálculo. Escolha um ficheiro .xlsx ou .csv exportado da folha de contingência.`,
+    importFailed: 'O Lantern não conseguiu abrir estes ficheiros. Confirme que cada um é uma cópia .xlsx ou .csv da folha de contingência e volte a escolhê-los. Nada foi enviado.',
+    drillFailed: 'Não foi possível abrir o simulacro. Recarregue a página e tente outra vez; se estiver sem rede, abra o Lantern uma vez com ligação primeiro.',
+    details: 'O que o navegador indicou:',
     ownTitle: 'Usar os seus ficheiros',
     ownText:
       'Escolha duas versões da mesma folha de contingência e, se a tiver, a lista de doentes. São lidas neste navegador e nunca são enviadas; as comparações correm só neste computador. Mesmo sem IA local, o Lantern assinala linhas iguais, correções, possíveis repetições de dose e dúvidas de identificação. Cabe a quem faz a revisão decidir o que fica por esclarecer.',
@@ -149,6 +157,9 @@ export default function Start() {
   const earlier = useRef<HTMLInputElement>(null);
   const later = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState({ census: '', earlier: '', later: '' });
+  // which action the last error belongs to, so it is shown beside that action and in its words
+  const [tried, setTried] = useState<'drill' | 'import' | null>(null);
+  const [wrongType, setWrongType] = useState<string | null>(null);
 
   async function prepare() {
     setPrepError(null);
@@ -166,7 +177,12 @@ export default function Start() {
     const e = earlier.current?.files?.[0];
     const l = later.current?.files?.[0];
     if (!e || !l) return;
-    void s.startImport({ census: census.current?.files?.[0], earlier: e, later: l });
+    const c = census.current?.files?.[0];
+    const odd = [c, e, l].find((f) => f && !/\.(xlsx|xls|csv)$/i.test(f.name));
+    setWrongType(odd ? odd.name : null);
+    if (odd) return;
+    setTried('import');
+    void s.startImport({ census: c, earlier: e, later: l });
   };
 
   // the drill's night, to scale: 21:00 to 09:00, with the record down from the first event to the last
@@ -191,7 +207,15 @@ export default function Start() {
       <div className="mt-7 grid gap-x-16 gap-y-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <p className="max-w-[58ch] text-[19px] leading-[1.5] text-ink-soft sm:text-[21px]">{t.lede}</p>
         <div className="lg:w-[28rem]">
-          <Button size="lg" onClick={() => void s.startDrill()} disabled={!!s.busy} className="w-full sm:w-auto lg:w-full lg:whitespace-nowrap">
+          <Button
+            size="lg"
+            onClick={() => {
+              setTried('drill');
+              void s.startDrill();
+            }}
+            disabled={!!s.busy}
+            className="w-full sm:w-auto lg:w-full lg:whitespace-nowrap"
+          >
             {t.startDrill}
           </Button>
           <p className="mt-2.5 text-[15px] text-ink-soft">{t.drillNote}</p>
@@ -220,9 +244,14 @@ export default function Start() {
           </div>
         </div>
       )}
-      {s.error && (
-        <div className="mt-5 max-w-[70ch]">
-          <Notice tone="pen">{s.error}</Notice>
+      {s.error && tried !== 'import' && (
+        <div className="mt-5 max-w-[70ch]" role="alert">
+          <Notice tone="pen">
+            {t.drillFailed}
+            <span className="mt-1 block text-[15px] text-ink-soft">
+              {t.details} {s.error}
+            </span>
+          </Notice>
         </div>
       )}
 
@@ -304,6 +333,18 @@ export default function Start() {
             {/* a disabled button says why */}
             {(!picked.earlier || !picked.later) && <span className="text-[15px] text-ink-soft">{t.pickFirst}</span>}
           </div>
+          {(wrongType || (s.error && tried === 'import')) && (
+            <div className="mt-4" role="alert">
+              <Notice tone="pen">
+                {wrongType ? t.wrongType(wrongType) : t.importFailed}
+                {!wrongType && (
+                  <span className="mt-1 block text-[15px] text-ink-soft">
+                    {t.details} {s.error}
+                  </span>
+                )}
+              </Notice>
+            </div>
+          )}
         </section>
       </div>
 
