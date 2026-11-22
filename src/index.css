@@ -3,9 +3,27 @@
 @import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
 @import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css";
 
+/* Literata, Latin only: the package also ships Greek, Cyrillic and Vietnamese, which would only pad the offline cache. */
+@font-face {
+  font-family: 'Literata Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 900;
+  src: url(../node_modules/@fontsource-variable/literata/files/literata-latin-ext-opsz-normal.woff2) format('woff2-variations');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Literata Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 900;
+  src: url(../node_modules/@fontsource-variable/literata/files/literata-latin-opsz-normal.woff2) format('woff2-variations');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 /*
  * The morning desk, and the night on it.
- * A bright working surface with strips cut from the ward's own spreadsheets, and one dark band
+ * A warm desk, a bright working surface with strips cut from the ward's own spreadsheets, and one dark band
  * (the hours the record was down) wherever time matters. Colour is only ever a signal:
  * highlighter for what differs between versions, red pen for what needs a decision or an answer,
  * scrub teal for "ran on this device", ballpoint blue for "ran in the cloud".
@@ -13,14 +31,14 @@
 @theme {
   --color-night: #0f1b2d; /* the outage band, the primary action, the strongest ink */
   --color-night-soft: #1f2f49;
-  --color-paper: #f2f4f6; /* the desk: page ground, queue, bars */
+  --color-paper: #f4f2ee; /* the desk: page ground, queue, bars */
   --color-sheet: #ffffff; /* the working surface: evidence and the open item */
-  --color-gutter: #e6eaee; /* sheet gutters and headers, as in a spreadsheet */
+  --color-gutter: #e9e6df; /* sheet gutters and headers, as in a spreadsheet */
   --color-ink: #16202c;
-  --color-ink-soft: #445160;
-  --color-ink-faint: #5f6b78;
-  --color-rule: #d3d9df;
-  --color-rule-strong: #7f8a97; /* 3.6:1 on the sheet: control and sheet borders */
+  --color-ink-soft: #474f5a;
+  --color-ink-faint: #5f6670;
+  --color-rule: #d9d5cc;
+  --color-rule-strong: #857f75; /* 4:1 on the sheet: control and sheet borders */
   --color-pen: #b92d22;
   --color-pen-wash: #fbeae8;
   --color-marker: #ffdd55;
@@ -49,6 +67,10 @@
      0 O, 1 l I and 5 S cannot be mistaken for each other, which is this product's whole subject. */
   --font-sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Atkinson Hyperlegible Mono Variable", "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* A third face, at large sizes only: the start headline, screen titles and the patient's name.
+     Literata was drawn for reading on screens; its strokes stay sturdy when a recording is compressed.
+     Anything that can be mistaken for something else (numbers, times, doses) stays in Atkinson. */
+  --font-display: "Literata Variable", Georgia, "Times New Roman", serif;
   --font-weight-semibold: 650;
   --font-weight-extrabold: 800;
 

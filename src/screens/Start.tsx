@@ -177,7 +177,7 @@ export default function Start() {
         <LangToggle />
       </header>
 
-      <h1 className="mt-10 text-[44px] font-extrabold leading-[1.02] tracking-[-0.02em] text-night sm:mt-14 sm:text-[56px] lg:text-[68px]">
+      <h1 className="mt-10 font-display text-[42px] font-bold leading-[1.04] tracking-[-0.015em] text-night sm:mt-14 sm:text-[54px] lg:text-[64px]">
         <span className="block">{t.headline[0]}</span>
         <span className="block max-w-[24ch]">{t.headline[1]}</span>
       </h1>

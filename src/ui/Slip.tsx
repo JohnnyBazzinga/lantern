@@ -156,11 +156,11 @@ export function Stack({ rows }: { rows: StackRow[] }) {
         </colgroup>
         <thead>
           <tr className="border-b border-rule-strong bg-gutter text-[14px] text-ink-soft">
-            <th scope="col" className="px-3 py-1.5 font-normal">
-              <span className="sr-only">{t.source}</span>
+            <th scope="col" className="px-3 py-2 font-normal">
+              {t.source}
             </th>
             {fields.map((f) => (
-              <th key={f} scope="col" className="border-l border-rule px-3 py-1.5 font-normal">
+              <th key={f} scope="col" className="border-l border-rule px-3 py-2 font-normal">
                 {f === 'by' ? t.byShort : t.field[f]}
               </th>
             ))}
@@ -169,7 +169,7 @@ export function Stack({ rows }: { rows: StackRow[] }) {
         <tbody>
           {rows.map((r) => (
             <tr key={r.key} className="border-b border-rule last:border-b-0">
-              <th scope="row" className="border-r border-rule-strong bg-gutter px-3 py-2 align-top font-normal" title={t.fileRow(r.fileName, r.sheetRow)}>
+              <th scope="row" className="border-r border-rule-strong bg-gutter px-3 py-3 align-top font-normal" title={t.fileRow(r.fileName, r.sheetRow)}>
                 <span className="block text-[15px] font-semibold leading-snug text-ink">{r.label.replace(/-/g, '\u2011')}</span>
                 <span className="block text-[14px] tabular-nums text-ink-soft">{t.row(r.sheetRow)}</span>
               </th>
@@ -182,7 +182,7 @@ export function Stack({ rows }: { rows: StackRow[] }) {
                     </td>
                   );
                 return (
-                  <td key={f} className="border-l border-rule px-3 pb-2.5 pt-1.5 align-top">
+                  <td key={f} className="border-l border-rule px-3 pb-3.5 pt-2 align-top">
                     <span className="block h-[18px] text-[13px] leading-[18px] tabular-nums text-ink-faint">{c.ref}</span>
                     {cellText(c)}
                   </td>
@@ -232,7 +232,7 @@ export function PatientLine({ act, override }: { act: Act; override?: { patientN
   const id = override?.patientId ?? act.patientId;
   return (
     <p className="flex flex-wrap items-baseline gap-x-3 text-[19px] text-ink-soft">
-      <span className="text-[28px] font-extrabold leading-tight tracking-[-0.01em] text-night">{name || t.noName}</span>
+      <span className="font-display text-[36px] font-bold leading-[1.1] tracking-[-0.01em] text-night">{name || t.noName}</span>
       {id && <span className="tabular-nums">{id}</span>}
       {act.bed && <span>{t.bedN(act.bed)}</span>}
     </p>

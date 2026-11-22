@@ -30,7 +30,7 @@ export default defineConfig({
         description:
           'Turn the paper and spreadsheets of a hospital IT outage into a validated re-entry worklist, on-device.',
         theme_color: '#0f1b2d',
-        background_color: '#f2f4f6',
+        background_color: '#f4f2ee',
         display: 'standalone',
         icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
       },
