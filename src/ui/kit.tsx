@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useEffect, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Check, Cloud, Cpu, Scale } from 'lucide-react';
 import { normText } from '../core/text';
 import { msgs } from '../i18n/lang';
@@ -28,6 +28,33 @@ const M = msgs(
     stepDone: 'feito',
   },
 );
+
+/** The browser tab says which screen this is ("Review – Lantern"), so a second tab or the history is readable. */
+export function usePageTitle(title: string) {
+  useEffect(() => {
+    document.title = title ? `${title} – Lantern` : 'Lantern';
+    return () => {
+      document.title = 'Lantern';
+    };
+  }, [title]);
+}
+
+/**
+ * The three states a thing waiting on the reviewer can be in, as one glyph used everywhere (the review
+ * queue, the columns): open (hollow), done (ink, tick), needs an answer or a look (red pen, "?").
+ */
+export function StateGlyph({ state, label }: { state: 'open' | 'waiting' | 'done'; label?: string }) {
+  return (
+    <span
+      className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full text-[12px] font-extrabold leading-none transition-colors duration-150 ${
+        state === 'done' ? 'bg-night text-white' : state === 'waiting' ? 'border-2 border-pen text-pen' : 'border-2 border-rule-strong'
+      }`}
+    >
+      {state === 'done' ? <Check size={12} strokeWidth={3.5} aria-hidden /> : state === 'waiting' ? <span aria-hidden>?</span> : null}
+      {label && <span className="sr-only">{label}</span>}
+    </span>
+  );
+}
 
 export function Button({
   tone = 'primary',

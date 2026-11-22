@@ -12,7 +12,7 @@ import { errorProneAbbreviations } from '../core/text';
 import { AnswerBox } from '../ui/AnswerBox';
 import type { SessionData } from '../app/store';
 import type { Act, Disposition, IdentityIssue, Judgment, MatchCandidate, Relation } from '../core/types';
-import { AppBar, Button, Meter, Route, Steps } from '../ui/kit';
+import { AppBar, Button, Meter, Route, StateGlyph, Steps, usePageTitle } from '../ui/kit';
 import { GAP_FITS, NightLine, type NightGap, type NightMark } from '../ui/NightLine';
 import { actRow, censusRow, PatientLine, Stack, useNoTime, type StackRow } from '../ui/Slip';
 import { Tally } from '../ui/Tally';
@@ -35,6 +35,7 @@ const M = msgs(
       abstained: 'the model was not sure',
       'local-unavailable': 'no AI model judged this pair',
     } as Record<EscalationReason, string>,
+    pageTitle: 'Review',
     nothing: 'Nothing to review.',
     allDecided: 'Every row has a decision.',
     openWorklist: 'Open the re-entry worklist',
@@ -159,6 +160,7 @@ const M = msgs(
       abstained: 'o modelo não tinha a certeza',
       'local-unavailable': 'nenhum modelo de IA avaliou este par',
     },
+    pageTitle: 'Revisão',
     nothing: 'Nada para rever.',
     allDecided: 'Todas as linhas têm uma decisão.',
     openWorklist: 'Abrir a lista para registo',
@@ -296,6 +298,7 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [queueOpen, setQueueOpen] = useState(false);
   const pane = useRef<HTMLElement>(null);
+  usePageTitle(t.pageTitle);
   const items = s.items;
   const active = items.find((i) => i.id === activeId) ?? items.find((i) => !isDecided(i, session.decisions)) ?? items[0];
   const undecided = items.filter((i) => !isDecided(i, session.decisions));
@@ -444,13 +447,8 @@ function Queue({
                         isActive ? 'bg-sheet shadow-[inset_4px_0_0_var(--color-night)]' : 'hover:bg-sheet/70'
                       }`}
                     >
-                      <span
-                        className={`mt-[3px] grid h-[18px] w-[18px] place-items-center rounded-full text-[12px] font-extrabold leading-none transition-colors duration-150 ${
-                          state === 'done' ? 'bg-night text-white' : state === 'waiting' ? 'border-2 border-pen text-pen' : 'border-2 border-rule-strong'
-                        }`}
-                      >
-                        {state === 'done' ? <Check size={12} strokeWidth={3.5} aria-hidden /> : state === 'waiting' ? <span aria-hidden>?</span> : null}
-                        <span className="sr-only">{t.status[state]}</span>
+                      <span className="mt-[3px]">
+                        <StateGlyph state={state} label={t.status[state]} />
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate text-[16px] font-semibold leading-snug">{act.patientName || t.bed(act.bed)}</span>

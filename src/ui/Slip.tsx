@@ -10,7 +10,7 @@ const M = msgs(
     field: { bed: 'Bed', patient: 'Patient', time: 'Time', what: 'What was done', notes: 'Comments', by: 'By' },
     byShort: 'By',
     source: 'Source',
-    noTime: '(no time written)',
+    noTime: 'no time',
     row: (n: number) => `row ${n}`,
     fileRow: (file: string, n: number) => `${file}, row ${n}`,
     notInSource: 'not in this file',
@@ -22,7 +22,7 @@ const M = msgs(
     field: { bed: 'Cama', patient: 'Doente', time: 'Hora', what: 'O que foi feito', notes: 'Observações', by: 'Registado por' },
     byShort: 'Por',
     source: 'Origem',
-    noTime: '(sem hora escrita)',
+    noTime: 'sem hora',
     row: (n) => `linha ${n}`,
     fileRow: (file, n) => `${file}, linha ${n}`,
     notInSource: 'não consta deste ficheiro',
@@ -41,6 +41,9 @@ interface Cell {
   against?: string;
   /** shown on separate lines (name over hospital number), so numbers sit above each other down the stack */
   lines?: string[];
+  /** what to say when the cell is empty, in Lantern's voice ("no time"); lit when the other row has a value there */
+  blank?: string;
+  blankDiffers?: boolean;
 }
 
 /** One source row in the stack: a row of a version of the log, or the census line it is checked against. */
@@ -76,7 +79,7 @@ export function actRow(act: Act, other: Act | undefined, file: SourceFile | unde
           against: opts.census ?? (other ? who(other.patientName, other.patientId) : undefined),
         },
       }),
-      time: { value: act.eventTime || opts.noTime, ref: act.evidence.time?.ref, against: other?.eventTime },
+      time: { value: act.eventTime, ref: act.evidence.time?.ref, against: other?.eventTime, blank: opts.noTime, blankDiffers: !!other?.eventTime },
       what: { value: act.actText, ref: act.evidence.act?.ref, against: theirs },
       notes: { value: act.notes, ref: act.evidence.notes?.ref, against: theirs },
       by: { value: act.documentedBy, ref: act.evidence.by?.ref },
@@ -130,8 +133,12 @@ const ORDER: Field[] = ['bed', 'patient', 'time', 'what', 'notes', 'by'];
  */
 export function Stack({ rows }: { rows: StackRow[] }) {
   const t = useT(M);
-  const fields = ORDER.filter((f) => rows.some((r) => r.cells[f]?.value));
-  const cellText = (c: Cell) => (
+  const fields = ORDER.filter((f) => f === 'time' || rows.some((r) => r.cells[f]?.value));
+  const cellText = (c: Cell) =>
+    !c.value && c.blank ? (
+      // an empty cell is described in Lantern's words, never in the ward's typeface
+      <span className="block text-[15px] leading-[1.55] text-ink-soft">{c.blankDiffers ? <mark className="diff">{c.blank}</mark> : c.blank}</span>
+    ) : (
     <span className="block font-mono text-[16px] leading-[1.45] tracking-[-0.015em] break-words">
       {c.lines && c.lines.length > 1 ? (
         c.lines.map((line, i) => (
@@ -143,7 +150,7 @@ export function Stack({ rows }: { rows: StackRow[] }) {
         <Diff text={c.value} other={c.against} />
       )}
     </span>
-  );
+    );
   return (
     <>
       <table className="hidden w-full table-fixed border-collapse border border-rule-strong bg-sheet text-left @3xl:table">
@@ -239,5 +246,5 @@ export function PatientLine({ act, override }: { act: Act; override?: { patientN
   );
 }
 
-/** "(no time written)" for a row with no time, in the current language. */
+/** "no time", for a row with no time written, in the current language. */
 export const useNoTime = () => useT(M).noTime;
