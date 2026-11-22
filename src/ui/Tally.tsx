@@ -52,14 +52,14 @@ export function Tally({ kind }: { kind: 'drill' | 'import' }) {
   const cloudCalls = ledger.filter((e) => e.inferenceSource === 'in_cloud');
   const sentRows = new Set(cloudCalls.flatMap((e) => e.outgoingRefs.filter((r) => r.includes(':')))).size;
   const deviceCalls = ledger.filter((e) => e.inferenceSource === 'on_device').length;
-  const wide = 'lg:max-[1399px]:hidden'; // between those widths the bar has room for the icon and the count only
+  const wide = 'max-[1399px]:sr-only'; // below that width the bar has room for the icon and the count only; the name stays for screen readers // between those widths the bar has room for the icon and the count only
   return (
     <>
-      <span className="flex items-center gap-1.5 whitespace-nowrap text-[15px]" title={t.countedFrom}>
-        <ShieldCheck size={18} className="text-ink-soft" aria-hidden />
+      <span className="flex items-center gap-1.5 whitespace-nowrap text-[14px] sm:text-[15px]" title={t.countedFrom}>
+        <ShieldCheck size={18} className="hidden text-ink-soft sm:block" aria-hidden />
         {t.sent} <strong className="font-semibold">{t.none}</strong>
       </span>
-      <span className="flex items-center gap-2">
+      <span className="ml-auto flex items-center gap-1.5 sm:gap-2 lg:ml-0">
         <span title={deviceCalls ? t.deviceTitle(deviceCalls) : t.noDevice}>
           <Route source="on_device" muted={deviceCalls === 0}>
             <span className={wide}>{t.device}</span> <span className="tabular-nums">{deviceCalls}</span>

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Cloud, TriangleAlert } from 'lucide-react';
 import { subscribeLedger, type LedgerEntry } from '../ai/ledger';
 import { groupCopy, isDecided, suggested, type ReviewItem } from '../app/review';
 import { sessionTitle, useSession } from '../app/session';
@@ -10,9 +10,10 @@ import { pairQuestion, singleQuestion } from '../core/questions';
 import { GROUP_ORDER, guard, rowRef, ruleVerdict, type EscalationReason, type ReviewGroup } from '../core/reconcile';
 import { errorProneAbbreviations } from '../core/text';
 import { AnswerBox } from '../ui/AnswerBox';
+import type { SessionData } from '../app/store';
 import type { Act, Disposition, IdentityIssue, Judgment, MatchCandidate, Relation } from '../core/types';
 import { AppBar, Button, Meter, Route, Steps } from '../ui/kit';
-import { NightLine, type NightMark } from '../ui/NightLine';
+import { GAP_FITS, NightLine, type NightGap, type NightMark } from '../ui/NightLine';
 import { actRow, censusRow, PatientLine, Stack, useNoTime, type StackRow } from '../ui/Slip';
 import { Tally } from '../ui/Tally';
 import { msgs } from '../i18n/lang';
@@ -132,7 +133,12 @@ const M = msgs(
     controlled: (drug: string) =>
       `Controlled drug (${drug}): whoever enters these doses should check them against the ward's controlled-drug register first.`,
     disputedOffer: ' A larger model in the cloud can give a second opinion, on these fictional drill rows only.',
-    queueSummary: (done: number, total: number) => `Review queue, ${done} of ${total} decided`,
+    queueSummary: (done: number, total: number, waiting: number) => `Review queue, ${done} of ${total} decided${waiting ? `, ${waiting} waiting` : ''}`,
+    nWaiting: (n: number) => `${n} waiting`,
+    allDecidedWaiting: (n: number) => `${n} ${n === 1 ? 'row is' : 'rows are'} waiting for a nurse's answer.`,
+    sentTitle: 'What will be sent to the cloud',
+    apart: (h: number, m: number) => `written ${[h ? `${h} h` : '', m ? `${m} min` : ''].filter(Boolean).join(' ')} apart`,
+    gapBetween: (a: string, b: string, apart: string) => `${a} and ${b} are ${apart}.`,
     status: { open: 'not decided', waiting: 'waiting for an answer', done: 'decided' },
     censusShort: 'census',
     nightLine: (drug: string) => `When each ${drug} row is timed, through the night`,
@@ -251,7 +257,12 @@ const M = msgs(
     controlled: (drug) =>
       `Estupefaciente (${drug}): quem registar estas doses deve confirmá-las primeiro no registo de estupefacientes do serviço.`,
     disputedOffer: ' Um modelo maior, na nuvem, pode dar uma segunda opinião, só sobre estas linhas fictícias do simulacro.',
-    queueSummary: (done, total) => `Linhas por rever, ${done} de ${total} decididas`,
+    queueSummary: (done, total, waiting) => `Linhas por rever, ${done} de ${total} decididas${waiting ? `, ${waiting} à espera` : ''}`,
+    nWaiting: (n) => `${n} à espera`,
+    allDecidedWaiting: (n) => `${n} ${n === 1 ? 'linha aguarda' : 'linhas aguardam'} resposta da enfermagem.`,
+    sentTitle: 'O que vai ser enviado para a nuvem',
+    apart: (h, m) => `escritas com ${[h ? `${h} h` : '', m ? `${m} min` : ''].filter(Boolean).join(' ')} de intervalo`,
+    gapBetween: (a, b, apart) => `${a} e ${b} estão ${apart}.`,
     status: { open: 'por decidir', waiting: 'à espera de resposta', done: 'decidida' },
     censusShort: 'lista de doentes',
     nightLine: (drug) => `A hora de cada linha com ${drug}, ao longo da noite`,
@@ -268,6 +279,16 @@ export function useLedgerEntries(): LedgerEntry[] {
 
 type QueueState = 'open' | 'waiting' | 'done';
 
+/**
+ * Where an item stands. A question sent to a nurse (about the act, or about who the patient is) is
+ * waiting: it has no answer yet, so it is never shown or counted as decided.
+ */
+function stateOf(i: ReviewItem, session: SessionData): QueueState {
+  if (i.actIds.some((id) => session.decisions[id]?.kind === 'unresolved')) return 'waiting';
+  if (i.identity.some((x) => session.identityDecisions[x.id] === 'ask') && !isDecided(i, session.decisions)) return 'waiting';
+  return isDecided(i, session.decisions) ? 'done' : 'open';
+}
+
 export default function Review({ onWorklist }: { onWorklist: () => void }) {
   const s = useSession();
   const t = useT(M);
@@ -278,6 +299,10 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
   const items = s.items;
   const active = items.find((i) => i.id === activeId) ?? items.find((i) => !isDecided(i, session.decisions)) ?? items[0];
   const undecided = items.filter((i) => !isDecided(i, session.decisions));
+  const waitingItems = items.filter((i) => stateOf(i, session) === 'waiting');
+  const doneItems = items.filter((i) => stateOf(i, session) === 'done').length;
+  const waitingRows = new Set(waitingItems.flatMap((i) => i.actIds));
+  const decidedRows = session.acts.filter((x) => session.decisions[x.id] && !waitingRows.has(x.id)).length;
 
   const next = (from: ReviewItem) => {
     const idx = items.findIndex((i) => i.id === from.id);
@@ -317,13 +342,15 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
             onClick={() => setQueueOpen((v) => !v)}
             className="flex w-full items-center justify-between gap-3 border-b border-rule px-4 py-3 text-left text-[16px] font-semibold sm:px-6 lg:hidden"
           >
-            {t.queueSummary(items.length - undecided.length, items.length)}
+            <span>{t.queueSummary(doneItems, items.length, waitingItems.length)}</span>
             <ChevronDown size={20} className={`shrink-0 transition-transform ${queueOpen ? 'rotate-180' : ''}`} aria-hidden />
           </button>
           <Queue
             items={items}
             active={active}
             open={queueOpen}
+            decidedRows={decidedRows}
+            waitingRows={waitingRows.size}
             onPick={(id) => {
               setActiveId(id);
               setQueueOpen(false);
@@ -333,8 +360,10 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
         <main ref={pane} className="@container flex min-w-0 scroll-mt-[60px] flex-col border-rule bg-sheet lg:border-l">
           {undecided.length === 0 && items.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-gutter px-4 py-3 sm:px-8">
-              <p className="flex items-center gap-2 font-semibold">
-                <Check size={20} strokeWidth={2.5} aria-hidden /> {t.allDecided}
+              <p className="font-semibold">
+                <Check size={20} strokeWidth={2.5} className="mr-2 inline align-[-4px]" aria-hidden />
+                {t.allDecided}
+                {waitingRows.size > 0 && <span className="font-normal text-pen"> {t.allDecidedWaiting(waitingRows.size)}</span>}
               </p>
               <Button onClick={onWorklist}>{t.openWorklist}</Button>
             </div>
@@ -347,7 +376,21 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
   );
 }
 
-function Queue({ items, active, open, onPick }: { items: ReviewItem[]; active?: ReviewItem; open: boolean; onPick: (id: string) => void }) {
+function Queue({
+  items,
+  active,
+  open,
+  decidedRows,
+  waitingRows,
+  onPick,
+}: {
+  items: ReviewItem[];
+  active?: ReviewItem;
+  open: boolean;
+  decidedRows: number;
+  waitingRows: number;
+  onPick: (id: string) => void;
+}) {
   const s = useSession();
   const session = s.session!;
   const t = useT(M);
@@ -356,41 +399,39 @@ function Queue({ items, active, open, onPick }: { items: ReviewItem[]; active?: 
   useEffect(() => {
     current.current?.scrollIntoView({ block: 'nearest' });
   }, [active?.id]);
-  // a question sent to a nurse is a decision that is still waiting: it never gets the tick
-  const stateOf = (i: ReviewItem): QueueState =>
-    i.actIds.some((id) => session.decisions[id]?.kind === 'unresolved') || i.identity.some((x) => session.identityDecisions[x.id] === 'ask' && !isDecided(i, session.decisions))
-      ? 'waiting'
-      : isDecided(i, session.decisions)
-        ? 'done'
-        : 'open';
   return (
     <nav
       aria-label={t.queue}
       className={`${open ? 'block' : 'hidden'} border-b border-rule px-3 py-5 sm:px-5 lg:sticky lg:top-[60px] lg:block lg:h-[calc(100vh-60px)] lg:overflow-y-auto lg:border-b-0 lg:px-4`}
     >
       <div className="mb-5 px-2">
-        <Meter done={s.decidedCount} total={session.acts.length} />
+        <Meter done={decidedRows} total={session.acts.length} waiting={waitingRows} />
         <p className="mt-2 hidden text-[14px] text-ink-faint lg:block">{t.queueHint}</p>
       </div>
       {groups.map(({ g, list }) => {
-        const done = list.filter((i) => isDecided(i, session.decisions)).length;
+        const done = list.filter((i) => stateOf(i, session) === 'done').length;
+        const waiting = list.filter((i) => stateOf(i, session) === 'waiting').length;
+        const left = list.filter((i) => !isDecided(i, session.decisions)).length;
         return (
           <section key={g} className="mb-5">
-            <div className="mb-1 flex items-baseline justify-between gap-2 px-2">
+            <div className="mb-1 flex flex-wrap items-baseline gap-x-3 px-2">
               <h2 className="text-[16px] font-semibold">{groupCopy(g).title}</h2>
-              <span className="text-[14px] tabular-nums text-ink-soft">
-                {done}/{list.length}
+              <span className="ml-auto flex items-baseline gap-x-3 whitespace-nowrap text-[14px] tabular-nums">
+                {waiting > 0 && <span className="text-pen">{t.nWaiting(waiting)}</span>}
+                <span className="text-ink-soft">
+                  {done}/{list.length}
+                </span>
               </span>
             </div>
-            {g === 'copies' && done < list.length && (
+            {g === 'copies' && left > 0 && (
               <button className="mb-1 px-2 text-left text-[15px] text-ballpoint underline underline-offset-2" onClick={() => s.acceptGroup('copies')}>
-                {t.keepCopies(list.length - done)}
+                {t.keepCopies(left)}
               </button>
             )}
             <ul>
               {list.map((i) => {
                 const act = s.actsById.get(i.a ?? i.act ?? '')!;
-                const state = stateOf(i);
+                const state = stateOf(i, session);
                 const isActive = active?.id === i.id;
                 return (
                   <li key={i.id}>
@@ -475,8 +516,8 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
   ];
 
   return (
-    <article aria-labelledby="item-title" className="flex flex-1 flex-col">
-      <div className="flex-1 px-4 pb-8 pt-5 sm:px-8 sm:pt-6">
+    <article aria-labelledby="item-title">
+      <div className="px-4 pb-7 pt-5 sm:px-8 sm:pt-6">
         <p className="text-[16px] text-ink-soft">
           <span className="font-semibold text-ink">{copy.title}.</span> {copy.hint}.
         </p>
@@ -501,7 +542,8 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
         <SameDrugStrip focus={b ? [a, b] : [a]} />
       </div>
 
-      <div className="border-t border-rule-strong bg-sheet px-4 py-4 sm:px-8 lg:sticky lg:bottom-0">
+      {/* directly under a short item; pinned to the bottom of the window only when the item is taller than it */}
+      <div className="border-y border-rule-strong bg-sheet px-4 py-4 sm:px-8 lg:sticky lg:bottom-0">
         {decided && <CurrentDecision item={item} />}
         {identityOpen.length > 0 ? (
           <p className="font-semibold text-pen">{t.identityFirst}</p>
@@ -559,13 +601,28 @@ function SameDrugStrip({ focus }: { focus: Act[] }) {
           } else marks.push({ at: act.timeMinutes, label: act.eventTime, count: 1, focus: inFocus.has(act.id), unsure: !sure, title: act.actText });
         }
         const untimed = rows.filter((r) => r.act.timeMinutes === null).length;
+        // only between two neighbouring lamps, which both have a time written; a row with no time has no gap to anything
+        const gaps: (NightGap & { sentence: string; fits: boolean })[] = marks.slice(1).map((m, i) => {
+          const prev = marks[i]!;
+          const label = t.apart(Math.floor((m.at - prev.at) / 60), (m.at - prev.at) % 60);
+          return { from: prev.at, to: m.at, label, sentence: t.gapBetween(prev.label, m.label, label), fits: (m.at - prev.at) / (range.to - range.from) >= GAP_FITS };
+        });
         return (
           <section key={key} aria-label={t.strip(capital(name))} className="mt-7">
             <h3 className="text-[17px] font-semibold">{t.strip(capital(name))}</h3>
             {marks.length > 0 && (
               <div className="mt-2">
-                <NightLine from={range.from} to={range.to} marks={marks} label={t.nightLine(name)} />
+                <NightLine from={range.from} to={range.to} marks={marks} gaps={gaps} label={[t.nightLine(name), ...gaps.map((g) => g.sentence)].join('. ')} />
               </div>
+            )}
+            {gaps.length > 0 && (
+              <ul className="text-[15px] text-ink-soft" aria-hidden>
+                {gaps.map((g) => (
+                  <li key={g.from} className={g.fits ? '@4xl:hidden' : ''}>
+                    {g.sentence}
+                  </li>
+                ))}
+              </ul>
             )}
             {untimed > 0 && <p className="mt-1 text-[15px] text-ink-soft">{t.untimed(untimed)}</p>}
             <div className="mt-3 overflow-x-auto border border-rule-strong bg-sheet">
@@ -887,11 +944,23 @@ function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; 
   );
 }
 
+/**
+ * The offer of a second opinion from the cloud, on the fictional drill only. Closed, it is one line.
+ * Opening it shows, in a dialog over the item, exactly what would leave this PC; only there is the
+ * button that sends it.
+ */
 function CloudOffer() {
   const s = useSession();
   const t = useT(M);
   const [show, setShow] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
   const preview = useMemo(() => (show ? s.previewCloud() : []), [show, s]);
+  useEffect(() => {
+    const d = dialog.current;
+    if (!d) return;
+    if (show && !d.open) d.showModal();
+    if (!show && d.open) d.close();
+  }, [show]);
   if (!s.cloudEligible) return null;
   // nothing left to ask about once every disputed row has a decision
   const open = [...s.escalated.keys()].filter((id) => {
@@ -900,32 +969,71 @@ function CloudOffer() {
   });
   if (!open.length) return null;
   const n = open.length;
-  // Closed, it is one line. Open, it shows exactly what would leave this PC, and only then offers to send it.
   return (
-    <div className="border-b border-ballpoint/25 bg-ballpoint-wash px-4 py-2.5 sm:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 @3xl:flex-nowrap">
+    <div className="border-b border-ballpoint/25 bg-ballpoint-wash">
+      {/* narrow pane: the whole line opens the dialog */}
+      <button
+        type="button"
+        onClick={() => setShow(true)}
+        aria-haspopup="dialog"
+        className="flex min-h-[48px] w-full items-center gap-2 px-4 py-2 text-left text-[16px] font-semibold sm:px-8 @3xl:hidden"
+      >
+        <Cloud size={18} strokeWidth={2.2} className="shrink-0 text-ballpoint" aria-hidden />
+        <span className="min-w-0 flex-1">
+          {t.disputedTitle(n)}
+          <span className="sr-only">. {t.showSent(false)}</span>
+        </span>
+        <ChevronRight size={20} className="shrink-0" aria-hidden />
+      </button>
+      <div className="hidden items-center justify-between gap-x-6 px-8 py-2.5 @3xl:flex">
         <p className="max-w-[92ch] text-[16px] leading-snug">
-          <Route source="in_cloud" /> <strong className="ml-1 font-semibold">{t.disputedTitle(n)}</strong>
-          {show ? t.disputedText : `.${t.disputedOffer}`}
+          <Route source="in_cloud" /> <strong className="ml-1 font-semibold">{t.disputedTitle(n)}</strong>.{t.disputedOffer}
         </p>
-        <Button tone="secondary" className="shrink-0" onClick={() => setShow((v) => !v)} aria-expanded={show}>
-          {t.showSent(show)}
+        <Button tone="secondary" className="shrink-0" onClick={() => setShow(true)} aria-haspopup="dialog">
+          {t.showSent(false)}
         </Button>
       </div>
-      {show && (
-        <>
-          <ol className="mt-3 max-h-72 space-y-3 overflow-y-auto">
-            {preview.map((p) => (
-              <li key={p.candidateId} className="border border-rule bg-sheet p-3">
-                <pre className="whitespace-pre-wrap font-mono text-[14px] leading-relaxed text-ink-soft">{p.prompt}</pre>
-              </li>
-            ))}
-          </ol>
-          <Button className="my-3" onClick={() => void s.askCloud()} disabled={!!s.busy}>
-            {t.askCloud}
-          </Button>
-        </>
-      )}
+      <dialog
+        ref={dialog}
+        onClose={() => setShow(false)}
+        aria-labelledby="cloud-title"
+        className="m-auto w-[min(60rem,calc(100vw-1.5rem))] rounded-md border border-rule-strong bg-sheet p-0 text-ink backdrop:bg-night/55"
+      >
+        {show && (
+          <div className="flex max-h-[calc(100dvh-1.5rem)] flex-col">
+            <div className="border-b border-rule px-5 py-4 sm:px-6">
+              <h2 id="cloud-title" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[21px] font-extrabold tracking-[-0.01em] text-night">
+                {t.sentTitle} <Route source="in_cloud" />
+              </h2>
+              <p className="mt-2 max-w-[86ch] text-[16px] leading-snug">
+                <strong className="font-semibold">{t.disputedTitle(n)}</strong>
+                {t.disputedText}
+              </p>
+            </div>
+            <ol className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-paper px-5 py-4 sm:px-6">
+              {preview.map((p) => (
+                <li key={p.candidateId} className="border border-rule bg-sheet p-3">
+                  <pre className="whitespace-pre-wrap font-mono text-[14px] leading-relaxed text-ink">{p.prompt}</pre>
+                </li>
+              ))}
+            </ol>
+            <div className="flex flex-wrap items-center gap-2 border-t border-rule px-5 py-3 sm:px-6">
+              <Button
+                onClick={() => {
+                  setShow(false);
+                  void s.askCloud();
+                }}
+                disabled={!!s.busy}
+              >
+                {t.askCloud}
+              </Button>
+              <Button tone="quiet" onClick={() => setShow(false)}>
+                {t.cancel}
+              </Button>
+            </div>
+          </div>
+        )}
+      </dialog>
     </div>
   );
 }

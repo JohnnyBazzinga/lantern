@@ -19,6 +19,16 @@ export interface NightMark {
   title?: string;
 }
 
+/** The time between two neighbouring lamps, in words, drawn as a dimension line inside the band. */
+export interface NightGap {
+  from: number;
+  to: number;
+  label: string;
+}
+
+/** A gap gets its words inside the band only if it is at least this share of the line; the caller says the rest in a sentence. */
+export const GAP_FITS = 0.28;
+
 const clock = (m: number) => `${String((12 + Math.floor(m / 60)) % 24).padStart(2, '0')}:00`;
 
 export function NightLine({
@@ -26,6 +36,7 @@ export function NightLine({
   to,
   down,
   marks,
+  gaps = [],
   inside,
   animate = false,
   label,
@@ -35,6 +46,8 @@ export function NightLine({
   /** the stretch the record was down; the whole line when omitted */
   down?: [number, number];
   marks: NightMark[];
+  /** shown inside the band on a wide pane, between the two lamps each one measures */
+  gaps?: NightGap[];
   /** a short caption set inside the dark band */
   inside?: ReactNode;
   /** draw the band, then light the lamps in order (the start page's one orchestrated moment) */
@@ -68,6 +81,19 @@ export function NightLine({
         >
           {inside && <span className="truncate pl-10 pr-4 text-[14px] text-white/80">{inside}</span>}
         </div>
+        {gaps
+          .filter((g) => (g.to - g.from) / span >= GAP_FITS)
+          .map((g) => (
+            <span
+              key={g.from}
+              className="absolute inset-y-0 hidden items-center gap-2 px-5 text-[13px] text-white/85 @4xl:flex"
+              style={{ left: pos(g.from), width: `${(100 * (g.to - g.from)) / span}%` }}
+            >
+              <span className="h-px flex-1 bg-white/35" />
+              <span className="whitespace-nowrap">{g.label}</span>
+              <span className="h-px flex-1 bg-white/35" />
+            </span>
+          ))}
         {marks.map((m, i) => (
           <span key={i} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: pos(m.at) }} title={m.title}>
             <span

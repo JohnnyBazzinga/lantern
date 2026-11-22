@@ -11,6 +11,7 @@ const M = msgs(
     rule: 'Rule',
     blank: '(blank)',
     decided: (done: number, total: number) => `${done} of ${total} rows decided`,
+    waiting: (n: number) => `${n} waiting for a nurse`,
     steps: 'Steps',
     step: { columns: 'Columns', review: 'Review', worklist: 'Worklist' },
     stepDone: 'done',
@@ -21,6 +22,7 @@ const M = msgs(
     rule: 'Regra',
     blank: '(em branco)',
     decided: (done, total) => `${done} de ${total} linhas decididas`,
+    waiting: (n) => `${n} à espera da enfermagem`,
     steps: 'Passos',
     step: { columns: 'Colunas', review: 'Revisão', worklist: 'Lista para registo' },
     stepDone: 'feito',
@@ -138,14 +140,22 @@ export function LanternMark({ size = 22 }: { size?: number }) {
   );
 }
 
-export function Meter({ done, total }: { done: number; total: number }) {
+/**
+ * How far the review is. Rows sent to a nurse are counted apart, in red pen: they have a question
+ * out, not a decision, so they never add to "decided".
+ */
+export function Meter({ done, total, waiting = 0 }: { done: number; total: number; waiting?: number }) {
   const t = useT(M);
-  const pct = total ? Math.round((100 * done) / total) : 0;
+  const pct = (n: number) => (total ? (100 * n) / total : 0);
   return (
-    <div aria-label={t.decided(done, total)}>
-      <span className="text-[15px] tabular-nums text-ink-soft">{t.decided(done, total)}</span>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-rule">
-        <div className="h-full bg-night transition-[width] duration-300" style={{ width: `${pct}%` }} />
+    <div role="group" aria-label={waiting ? `${t.decided(done, total)}, ${t.waiting(waiting)}` : t.decided(done, total)}>
+      <p className="text-[15px] leading-snug tabular-nums text-ink-soft">
+        {t.decided(done, total)}
+        {waiting > 0 && <span className="block text-pen">{t.waiting(waiting)}</span>}
+      </p>
+      <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-rule" aria-hidden>
+        <div className="h-full bg-night transition-[width] duration-300" style={{ width: `${pct(done)}%` }} />
+        <div className="h-full bg-pen transition-[width] duration-300" style={{ width: `${pct(waiting)}%` }} />
       </div>
     </div>
   );
@@ -165,7 +175,7 @@ export function Steps({ current, onGo = {} }: { current: StepKey; onGo?: Partial
   const at = STEPS.indexOf(current);
   return (
     <nav aria-label={t.steps} className="no-print">
-      <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[15px] sm:gap-x-1.5 lg:flex-nowrap">
+      <ol className="flex items-center gap-x-0.5 text-[15px] sm:gap-x-1.5">
         {STEPS.map((k, i) => {
           const done = i < at;
           const here = i === at;
@@ -179,10 +189,11 @@ export function Steps({ current, onGo = {} }: { current: StepKey; onGo?: Partial
               >
                 {done ? <Check size={13} strokeWidth={3} aria-label={t.stepDone} /> : i + 1}
               </span>
-              {t.step[k]}
+              {/* on a phone only the current step keeps its word; the others keep their number and their name for screen readers */}
+              <span className={here ? '' : 'sr-only sm:not-sr-only'}>{t.step[k]}</span>
             </>
           );
-          const look = `flex items-center gap-1.5 whitespace-nowrap rounded-md px-1 py-1 sm:px-1.5 ${here ? 'font-semibold text-night' : 'text-ink-soft'}`;
+          const look = `flex min-h-[32px] items-center gap-1.5 whitespace-nowrap rounded-md px-1 py-1 sm:px-1.5 ${here ? 'font-semibold text-night' : 'text-ink-soft'}`;
           return (
             <li key={k} className="flex items-center gap-1 sm:gap-1.5">
               {i > 0 && <span className="hidden h-px w-5 bg-rule-strong sm:block" aria-hidden />}
@@ -208,17 +219,18 @@ export function Steps({ current, onGo = {} }: { current: StepKey; onGo?: Partial
  * On a wide screen it stays in view; on a phone it scrolls away with the page.
  */
 export function AppBar({ title, steps, children }: { title?: string; steps?: ReactNode; children?: ReactNode }) {
+  // phone: two rows (mark, steps, language; then the tally). wide: one sticky row.
   return (
     <header className="no-print z-30 border-b border-rule bg-paper lg:sticky lg:top-0">
-      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 sm:px-6 lg:h-[60px] lg:flex-nowrap lg:py-0">
+      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 sm:gap-x-5 sm:px-6 lg:h-[60px] lg:flex-nowrap lg:gap-x-6 lg:py-0">
         <div className="flex items-center gap-2 text-night">
           <LanternMark size={26} />
           <span className="text-[19px] font-extrabold tracking-[-0.01em]">Lantern</span>
-          {title && <span className="ml-2 whitespace-nowrap text-[15px] text-ink-soft">{title}</span>}
+          {title && <span className="ml-2 hidden whitespace-nowrap text-[15px] text-ink-soft sm:inline">{title}</span>}
         </div>
-        <div className="order-3 w-full lg:order-none lg:w-auto lg:shrink-0">{steps}</div>
-        <div className="order-4 flex w-full flex-wrap items-center gap-x-4 gap-y-2 lg:order-none lg:ml-auto lg:w-auto lg:flex-nowrap">{children}</div>
-        <LangToggle className="order-2 ml-auto lg:order-none lg:ml-0" />
+        <div className="shrink-0">{steps}</div>
+        <div className="order-last flex w-full items-center gap-x-3 lg:order-none lg:ml-auto lg:w-auto lg:gap-x-4">{children}</div>
+        <LangToggle className="ml-auto lg:ml-0" />
       </div>
     </header>
   );
