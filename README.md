@@ -28,7 +28,8 @@ The experience depends on the browser:
 - **Desktop Chrome with Gemini Nano:** everything runs on the device and works offline once loaded.
 - **Any other browser:** the drill still works through the SDK's automatic cloud fallback, and every call says where it ran.
 - **Your own files** ("Use your own files") never leave the browser. Without Gemini Nano they are compared by hand, with identical rows and identity problems still found by code.
-- **`#/lab`:** diagnostics and the benchmark runner (spikes S1–S5).
+- **`#/check`:** "Check this computer", for hospital IT, in English and Portuguese. It reads the browser, the on-device model's availability, offline readiness and storage. For the Chrome policy and free disk, which a web page cannot read, it says so and names the manual check. A local test sends one fictional row through the on-device model and counts every request to Google meanwhile. A plain-text report can be copied into a ticket.
+- **`#/lab`:** the developer bench: diagnostics and the benchmark runner (spikes S1–S5).
 
 ## How Lantern uses Firebase AI Logic hybrid inference
 
@@ -100,7 +101,7 @@ On-device inference needs desktop Chrome with Gemini Nano ([hardware requirement
 The interface is in English and European Portuguese, switched with the EN/PT button on every screen (or `?lang=pt` in the address; the default follows the browser). The switch changes the words, never the decisions: a test runs the same sheet in both languages and compares every proposal (`tests/core/i18n.test.ts`).
 
 - **What is translated:** every screen, the questions for the nurse, the late-entry note to paste into the record ("Registo diferido, após indisponibilidade do sistema. Hora original: …"), the reasons behind each suggestion, and the CSV. In Portuguese the CSV uses semicolons and a UTF-8 byte-order mark, which is what Excel expects in Portugal.
-- **What is not:** rows are always shown exactly as typed. The drill's rows, the prompts and the model's quoted evidence stay in English, because Gemini Nano does not accept Portuguese. The Lab page for IT is English only.
+- **What is not:** rows are always shown exactly as typed. The drill's rows, the prompts and the model's quoted evidence stay in English, because Gemini Nano does not accept Portuguese. The developer Lab page is English only; the IT check page (`#/check`) is in both languages.
 - **Portuguese sheets:** the deterministic rules read Portuguese ward shorthand as well as English (corrections such as "NÃO administrada", "por engano", "corrigido"; admissions and transfers; high-alert medicines such as morfina, enoxaparina, insulina; "segundo enf. KS"; falls). Columns such as Cama, Doente, N.º processo, Hora, Intervenção, Observações and Enf. are recognised without a model. CSV files are read as UTF-8 or as Windows-1252, the encoding of Excel's plain CSV in Portugal. Gemini Nano is not validated on Portuguese text, so on those sheets the rules carry the safety and the model only proposes.
 
 ## Project layout

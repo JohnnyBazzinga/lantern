@@ -347,7 +347,7 @@ export function AppBar({ title, steps, actions, onWave = false, children }: { ti
         <div className="shrink-0 lg:ml-2 min-[1600px]:ml-4">{steps}</div>
         <div className="order-last flex w-full items-center gap-x-2 lg:order-none lg:ml-auto lg:w-auto">{children}</div>
         {/* over the page's dark wave (until the page scrolls under the bar) the actions are written in white, as on the mockup */}
-        {actions && <div className={`ml-auto flex items-center lg:ml-0 ${onWave && !scrolled ? '[&_button]:!text-white' : ''}`}>{actions}</div>}
+        {actions && <div className={`ml-auto flex items-center lg:ml-0 ${onWave && !scrolled ? '[&_a]:!text-white [&_button]:!text-white' : ''}`}>{actions}</div>}
         <LangToggle className={actions ? '' : 'ml-auto lg:ml-0'} />
       </div>
     </header>

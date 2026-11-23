@@ -65,7 +65,8 @@ const M = msgs(
       "Lantern is a documentation aid for re-entering records after downtime. It does not diagnose, dose or triage, and it never writes into any record system. It is an open-source project built for Google's #BuildHybridAI hackathon, not a hospital product, and it has not been approved for use with real patients.",
     privacy: 'Data protection',
     source: 'Source code',
-    lab: 'Diagnostics for IT',
+    lab: 'Check this computer (for IT)',
+    checkPc: 'Check this computer',
     checking: 'Checking this device…',
     ready: (
       <>
@@ -150,7 +151,8 @@ const M = msgs(
       'O Lantern é um apoio à documentação para voltar a registar depois de uma falha dos sistemas. Não faz diagnósticos, não calcula doses nem faz triagem, e nunca escreve em nenhum sistema de registo. É um projeto de código aberto, feito para o hackathon #BuildHybridAI da Google; não é um produto hospitalar e não foi aprovado para uso com doentes reais.',
     privacy: 'Proteção de dados (em inglês)',
     source: 'Código-fonte',
-    lab: 'Diagnóstico para a informática (em inglês)',
+    lab: 'Verificar este computador (para a informática)',
+    checkPc: 'Verificar este computador',
     checking: 'A verificar este computador…',
     ready: (
       <>
@@ -430,7 +432,7 @@ export default function Start() {
             <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/JohnnyBazzinga/lantern" target="_blank" rel="noreferrer">
               {t.source}
             </a>
-            <a className="underline underline-offset-2 hover:text-ink" href="#/lab">
+            <a className="underline underline-offset-2 hover:text-ink" href="#/check">
               {t.lab}
             </a>
           </span>
@@ -477,19 +479,29 @@ function Readiness({ local, preparing, onPrepare }: { local: ReturnType<typeof u
     return (
       <>
         <p>{t.notYet}</p>
-        <Button tone="secondary" className="mt-3" onClick={onPrepare} disabled={preparing !== null}>
-          {preparing === null ? t.download : t.downloading(Math.round(preparing * 100))}
-        </Button>
+        <span className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Button tone="secondary" onClick={onPrepare} disabled={preparing !== null}>
+            {preparing === null ? t.download : t.downloading(Math.round(preparing * 100))}
+          </Button>
+          <a className="font-semibold text-forest underline underline-offset-2" href="#/check">
+            {t.checkPc}
+          </a>
+        </span>
       </>
     );
   return (
-    <p>
-      {t.none}{' '}
-      <a className="underline underline-offset-2" href="https://developer.chrome.com/docs/ai/get-started" target="_blank" rel="noreferrer">
-        {t.needsChrome}
+    <>
+      <p>
+        {t.none}{' '}
+        <a className="underline underline-offset-2" href="https://developer.chrome.com/docs/ai/get-started" target="_blank" rel="noreferrer">
+          {t.needsChrome}
+        </a>
+        .
+      </p>
+      <a className="mt-2 inline-block font-semibold text-forest underline underline-offset-2" href="#/check">
+        {t.checkPc}
       </a>
-      .
-    </p>
+    </>
   );
 }
 

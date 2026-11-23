@@ -8,6 +8,7 @@ import Result from './screens/Result';
 import Working from './screens/Working';
 
 const Lab = lazy(() => import('./screens/Lab'));
+const Check = lazy(() => import('./screens/Check'));
 
 function useHashRoute(): string {
   const [route, setRoute] = useState(() => window.location.hash.replace(/^#/, '') || '/');
@@ -28,6 +29,12 @@ export default function App() {
           <Lab />
         </Suspense>
       </div>
+    );
+  if (route.startsWith('/check'))
+    return (
+      <Suspense fallback={null}>
+        <Check />
+      </Suspense>
     );
   return (
     <SessionProvider>
