@@ -133,7 +133,7 @@ Third-party libraries:
 - Vitest
 - TypeScript
 
-Fonts are Atkinson Hyperlegible Next and Mono, and Literata for large titles, bundled with the app (`@fontsource-variable`), so they are available offline.
+Fonts are Newsreader for titles, Inter for text, and Atkinson Hyperlegible Mono for values copied from a sheet (its slashed zero and distinct 1, l and I matter when two hospital numbers differ by one character). Caveat writes the note in the start picture. All are bundled with the app (`@fontsource-variable`), so they are available offline.
 
 ## Licence
 

@@ -274,7 +274,7 @@ export function Steps({ current, onGo = {} }: { current: StepKey | 'after'; onGo
   const at = current === 'after' ? STEPS.length : STEPS.indexOf(current);
   return (
     <nav aria-label={t.steps} className="no-print">
-      <ol className="flex items-center gap-x-1 text-[15px] sm:gap-x-2">
+      <ol className="flex items-center gap-x-0.5 text-[14px] sm:gap-x-2 sm:text-[15px]">
         {STEPS.map((k, i) => {
           const done = i < at;
           const here = i === at;
@@ -292,7 +292,7 @@ export function Steps({ current, onGo = {} }: { current: StepKey | 'after'; onGo
               <span className={here ? '' : 'sr-only sm:not-sr-only'}>{t.step[k]}</span>
             </>
           );
-          const look = `flex min-h-[32px] items-center gap-2 whitespace-nowrap rounded-md px-1 py-1 ${here ? 'font-semibold text-ink' : 'text-ink-soft'}`;
+          const look = `flex min-h-[32px] items-center gap-1.5 whitespace-nowrap rounded-md px-0.5 py-1 sm:gap-2 sm:px-1 ${here ? 'font-semibold text-ink' : 'text-ink-soft'}`;
           return (
             <li key={k} className="flex items-center gap-1 sm:gap-2">
               {i > 0 && <span className="hidden h-px w-5 bg-ink-faint/50 sm:block min-[1600px]:w-7" aria-hidden />}
@@ -329,7 +329,7 @@ export function AppBar({ title, steps, actions, onWave = false, children }: { ti
   }, []);
   return (
     <header className={`no-print relative z-30 transition-[background-color,box-shadow] duration-150 lg:sticky lg:top-0 ${scrolled ? 'bg-paper shadow-[0_1px_0_var(--color-rule)]' : 'bg-transparent'}`}>
-      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 sm:gap-x-5 sm:px-6 lg:h-[64px] lg:flex-nowrap lg:gap-x-4 lg:py-0 xl:px-8 min-[1800px]:gap-x-6">
+      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 sm:gap-x-5 sm:px-6 lg:h-[64px] lg:flex-nowrap lg:gap-x-4 lg:py-0 xl:px-8 min-[1800px]:gap-x-6">
         <div className="flex items-center gap-4">
           <span className="min-[440px]:hidden" aria-label="Lantern" role="img">
             <LanternMark size={28} className="text-ink" />

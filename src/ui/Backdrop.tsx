@@ -44,21 +44,22 @@ export function Backdrop({ variant }: { variant: 'hero' | 'page' | 'work' }) {
               <stop offset="0.55" stopColor="#123a31" />
               <stop offset="1" stopColor="#2f5e4d" />
             </linearGradient>
-            <radialGradient id={`f${id}`} cx="176" cy="150" r="235" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stopColor="#f4f2ee" stopOpacity="1" />
-              <stop offset="0.3" stopColor="#f4f2ee" stopOpacity="1" />
-              <stop offset="0.5" stopColor="#e9ece5" stopOpacity="0.72" />
-              <stop offset="0.75" stopColor="#d9e2d8" stopOpacity="0.28" />
-              <stop offset="1" stopColor="#d9e2d8" stopOpacity="0" />
+            {/* the mist: a mask that fades the band itself into the page at its lower-left tip, so no edge is left */}
+            <radialGradient id={`f${id}`} cx="160" cy="190" r="235" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stopColor="#000" />
+              <stop offset="0.28" stopColor="#000" />
+              <stop offset="0.5" stopColor="#555" />
+              <stop offset="0.74" stopColor="#c4c4c4" />
+              <stop offset="1" stopColor="#fff" />
             </radialGradient>
+            <mask id={`k${id}`} maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="420">
+              <rect width="600" height="420" fill={`url(#f${id})`} />
+            </mask>
             <filter id={`b${id}`} x="-5%" y="-5%" width="110%" height="110%">
               <feGaussianBlur stdDeviation="0.8" />
             </filter>
           </defs>
-          <g filter={`url(#b${id})`}>
-            <path d={BAND} fill={`url(#w${id})`} />
-            <path d={BAND} fill={`url(#f${id})`} />
-          </g>
+          <path d={BAND} fill={`url(#w${id})`} mask={`url(#k${id})`} filter={`url(#b${id})`} />
         </svg>
       ) : variant === 'work' ? (
         <svg className="absolute right-0 top-0 w-[min(22vw,340px)] max-sm:w-[40vw]" viewBox="0 0 600 420" fill="none">

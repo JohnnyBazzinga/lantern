@@ -60,7 +60,8 @@
   --color-well: #edece5; /* table headers, the source column, value chips */
   --color-stone: #efebe5; /* neutral chips: the cloud, the rules */
   --color-rule: #e6e2da; /* card and table lines */
-  --color-rule-strong: #cbc5ba; /* control borders */
+  --color-rule-strong: #cbc5ba; /* button and select borders */
+  --color-field-line: #958f84; /* borders of fields you type into: 3:1 on the field, so an empty one is still visible */
   --color-ink: #111714;
   --color-ink-soft: #4a524d;
   --color-ink-faint: #5e6661;
@@ -225,5 +226,8 @@ mark.diff {
   }
   mark.diff {
     animation: none;
+  }
+  .marker-leaf::before {
+    display: none;
   }
 }

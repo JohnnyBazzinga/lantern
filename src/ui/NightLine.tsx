@@ -74,33 +74,36 @@ export function NightLine({
           </span>
         ))}
       </div>
-      <div className="relative h-10 rounded-[3px] bg-well">
-        <div
-          className={`absolute inset-y-0 flex items-center overflow-hidden rounded-[3px] bg-forest ${animate ? 'animate-night-draw' : ''}`}
+      {/* a thin line through the night, as on the start page: the stretch the record was down in forest green */}
+      <div className="relative h-10">
+        <span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-rule-strong/70" />
+        <span
+          className={`absolute top-1/2 flex h-[2px] -translate-y-1/2 items-center rounded-full bg-forest ${animate ? 'animate-lamp-on' : ''}`}
           style={{ left: pos(d0), width: `${(100 * (d1 - d0)) / span}%` }}
-        >
-          {inside && <span className="truncate pl-10 pr-4 text-[14px] text-white/80">{inside}</span>}
-        </div>
+        />
+        {inside && (
+          <span className="absolute top-1/2 -translate-y-1/2 truncate rounded-full bg-card px-3 text-[13.5px] text-ink-soft" style={{ left: `calc(${pos(d0)} + 28px)` }}>
+            {inside}
+          </span>
+        )}
         {gaps
           .filter((g) => (g.to - g.from) / span >= GAP_FITS)
           .map((g) => (
             <span
               key={g.from}
-              className="absolute inset-y-0 hidden items-center gap-2 px-5 text-[13px] text-white/85 @4xl:flex"
+              className="absolute inset-y-0 hidden items-center justify-center px-5 @4xl:flex"
               style={{ left: pos(g.from), width: `${(100 * (g.to - g.from)) / span}%` }}
             >
-              <span className="h-px flex-1 bg-white/35" />
-              <span className="whitespace-nowrap">{g.label}</span>
-              <span className="h-px flex-1 bg-white/35" />
+              <span className="whitespace-nowrap rounded-full bg-card px-2.5 text-[13px] text-ink-soft">{g.label}</span>
             </span>
           ))}
         {marks.map((m, i) => (
           <span key={i} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: pos(m.at) }} title={m.title}>
             <span
-              className={`grid place-items-center rounded-full text-[13px] font-extrabold leading-none ${animate ? 'animate-lamp-on' : ''} ${
-                m.unsure ? 'border-2 border-dashed border-lamp bg-forest text-lamp' : 'bg-lamp text-ink'
-              } ${m.count && m.count > 1 ? 'h-6 w-6' : m.unsure ? 'h-6 w-6' : 'h-4 w-4'} ${m.focus ? 'outline outline-2 outline-offset-[3px] outline-white' : ''}`}
-              style={{ animationDelay: animate ? `${650 + i * 120}ms` : undefined, boxShadow: m.unsure ? undefined : '0 0 0 4px rgb(245 184 74 / 0.28)' }}
+              className={`grid place-items-center rounded-full text-[12.5px] font-bold leading-none ${animate ? 'animate-lamp-on' : ''} ${
+                m.unsure ? 'h-6 w-6 border-[1.5px] border-dashed border-amber bg-amber-wash text-amber-ink' : m.count && m.count > 1 ? 'h-6 w-6 bg-forest text-white' : 'h-[14px] w-[14px] bg-forest'
+              } ${m.focus ? 'outline outline-2 outline-offset-[3px] outline-forest/45' : ''}`}
+              style={{ animationDelay: animate ? `${650 + i * 120}ms` : undefined }}
             >
               {m.unsure ? '?' : m.count && m.count > 1 ? m.count : ''}
             </span>

@@ -9,7 +9,8 @@ import { buildWorklist, defaultNightOf, formatDate, worklistCsv, type WorklistIt
 import { locale, msgs } from '../i18n/lang';
 import { useLang, useT } from '../i18n/react';
 import { AnswerBox } from '../ui/AnswerBox';
-import { AppBar, Button, Notice, Steps, usePageTitle } from '../ui/kit';
+import { Backdrop } from '../ui/Backdrop';
+import { AppBar, Button, Card, Eyebrow, Kicker, Marked, Notice, Steps, usePageTitle } from '../ui/kit';
 import { Tally } from '../ui/Tally';
 
 const M = msgs(
@@ -21,6 +22,8 @@ const M = msgs(
     remove: 'Delete it from this PC',
     cancel: 'Cancel',
     title: 'Re-entry worklist',
+    stepOf: 'Step 3 of 3',
+    kicker: 'Ready to enter in the record',
     ready: (n: number) => `${n} ${n === 1 ? 'act is' : 'acts are'} ready for re-entry. `,
     forYou: (n: number) => `The clinical secretary enters the ${n === 1 ? 'admission or transfer' : `${n} admissions and transfers`}. `,
     rest: 'Each nurse enters their own clinical acts as late entries.',
@@ -93,6 +96,8 @@ const M = msgs(
     remove: 'Apagar deste computador',
     cancel: 'Cancelar',
     title: 'Lista para registo',
+    stepOf: 'Passo 3 de 3',
+    kicker: 'Pronto a registar no processo clínico',
     ready: (n) => `A lista tem ${n} ${n === 1 ? 'ato' : 'atos'} para registo. `,
     forYou: (n) => `O secretariado clínico regista ${n === 1 ? 'a admissão ou transferência' : `as ${n} admissões e transferências`}. `,
     rest: 'Cada elemento da equipa de enfermagem faz o registo diferido dos seus próprios atos clínicos.',
@@ -216,30 +221,38 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
     a.click();
   };
   const toResult = session.kind === 'drill' && wl.undecided.length === 0;
-  const field = 'min-h-[42px] rounded-md border border-rule-strong bg-sheet px-2.5 py-1.5 text-[16px]';
+  const field = 'min-h-[44px] rounded-lg border border-field-line bg-sheet px-3 py-1.5 text-[16px]';
+  const cut = t.title.lastIndexOf(' ');
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="relative isolate flex min-h-full flex-col">
+      <Backdrop variant="page" />
       <AppBar title={sessionTitle(session.kind)} steps={<Steps current="worklist" onGo={{ review: onBack }} />}>
         <Tally kind={session.kind} />
       </AppBar>
-      <main className="@container mx-auto w-full max-w-[1280px] flex-1 px-4 pb-16 pt-7 sm:px-8 sm:pt-10 print:max-w-none print:p-0">
-        <h1 className="font-display text-[34px] font-bold leading-[1.08] tracking-[-0.01em] text-ink sm:text-[44px] print:text-[22px]">{t.title}</h1>
+      <main className="@container mx-auto w-full max-w-[1400px] flex-1 px-4 pb-16 pt-6 sm:px-8 sm:pt-8 xl:px-12 print:max-w-none print:p-0">
+        <div className="no-print flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Eyebrow>{t.stepOf}</Eyebrow>
+          <Kicker>{t.kicker}</Kicker>
+        </div>
+        <h1 className="mt-5 font-display text-[40px] font-medium leading-[1.04] tracking-[-0.022em] text-ink sm:text-[56px] print:mt-0 print:text-[22px]">
+          {t.title.slice(0, cut)} <Marked>{t.title.slice(cut + 1)}.</Marked>
+        </h1>
 
         {/* the three numbers that say where re-entry stands; "ready" and "entered" are kept apart on purpose */}
-        <dl className="mt-5 grid border-y border-rule-strong sm:grid-cols-3 print:hidden">
+        <dl className="mt-7 grid gap-3 sm:grid-cols-3 print:hidden">
           {[
             { n: wl.ready.length, label: t.sumReady(wl.ready.length), tone: '' },
             { n: wl.questions.length, label: t.sumWaiting(wl.questions.length, waitingRows), tone: wl.questions.length ? 'text-amber-ink' : '' },
             { n: entered, label: t.sumEntered(wl.ready.length), tone: '' },
           ].map((x, i) => (
-            <div key={i} className={`flex items-baseline gap-3 py-3 sm:px-5 sm:first:pl-0 ${i ? 'border-t border-rule sm:border-l sm:border-t-0' : ''}`}>
-              <dd className={`text-[34px] font-extrabold leading-none tabular-nums ${x.tone || 'text-ink'}`}>{x.n}</dd>
-              <dt className={`text-[16px] leading-snug ${x.tone || 'text-ink-soft'}`}>{x.label}</dt>
-            </div>
+            <Card key={i} className={`flex items-center gap-4 px-5 py-4 ${i === 1 && wl.questions.length ? '!border-amber-line !bg-amber-wash' : ''}`}>
+              <dd className={`font-display text-[44px] font-semibold leading-none tabular-nums ${x.tone || 'text-ink'}`}>{x.n}</dd>
+              <dt className={`text-[15.5px] leading-snug ${x.tone || 'text-ink-soft'}`}>{x.label}</dt>
+            </Card>
           ))}
         </dl>
-        <p className="mt-4 max-w-[76ch] text-[17px] text-ink-soft print:hidden">
+        <p className="mt-5 max-w-[80ch] text-[17px] text-ink print:hidden">
           {t.rest}
           {t.readyNotEntered}
         </p>
@@ -293,7 +306,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
 
         {people.length > 0 && (
           <>
-            <div role="tablist" aria-label={t.people} className="no-print -mx-4 mt-9 flex gap-x-1 overflow-x-auto border-b border-rule-strong px-4 sm:mx-0 sm:px-0">
+            <div role="tablist" aria-label={t.people} className="no-print -mx-4 mt-10 flex gap-x-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
               {people.map((p) => {
                 const on = p.key === current?.key;
                 return (
@@ -306,9 +319,9 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
                       setTab(p.key);
                       e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' });
                     }}
-                    className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap border-b-[3px] px-3 py-2 text-left ${on ? 'border-forest text-ink' : 'border-transparent text-ink-soft hover:text-ink'}`}
+                    className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-left ${on ? 'border-mint-line bg-mint text-forest' : 'border-rule bg-card text-ink-soft hover:border-rule-strong hover:text-ink'}`}
                   >
-                    <span className="text-[19px] font-extrabold tracking-[-0.01em]">{p.tab}</span>
+                    <span className="font-display text-[19px] font-semibold tracking-[-0.01em]">{p.tab}</span>
                     <span className="text-[15px] tabular-nums">
                       {t.counts(p.acts.length, 0)}
                       {p.questions.length > 0 && (
@@ -328,7 +341,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
                 <p className="print-only mb-4 border-b border-black pb-2 text-[13px] font-semibold">{t.printHead(p.who, formatDate(nightOf))}</p>
                 {p.questions.length > 0 && (
                   <div className="mb-9">
-                    <h2 className="text-[21px] font-extrabold tracking-[-0.01em] text-amber-ink">{t.forOwner(p.tab, p.questions.length)}</h2>
+                    <h2 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-amber">{t.forOwner(p.tab, p.questions.length)}</h2>
                     <p className="mb-4 mt-1 max-w-[76ch] text-[16px] text-ink-soft print:hidden">{t.questionsText}</p>
                     <ul className="space-y-3">
                       {p.questions.map((q) => (
@@ -339,7 +352,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
                 )}
                 {p.acts.length > 0 ? (
                   <>
-                    <h2 className="text-[21px] font-extrabold tracking-[-0.01em] text-ink">{p.clerk ? t.clerk : t.toEnterLate(p.who, p.acts.length)}</h2>
+                    <h2 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-ink">{p.clerk ? t.clerk : t.toEnterLate(p.who, p.acts.length)}</h2>
                     <p className="mb-4 mt-1 max-w-[80ch] text-[16px] text-ink-soft">
                       {p.clerk ? (
                         t.clerkText
@@ -361,7 +374,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
         )}
 
         <section className="mt-14 max-w-[80ch] border-t border-rule-strong pt-7 print:hidden" aria-labelledby="keep">
-          <h2 id="keep" className="text-[21px] font-extrabold tracking-[-0.01em] text-ink">
+          <h2 id="keep" className="font-display text-[24px] font-semibold tracking-[-0.01em] text-ink">
             {t.keep}
           </h2>
           <p className="mt-1 text-[16px] text-ink-soft">{t.keepText}</p>
@@ -378,14 +391,14 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
         <AuditTrail />
 
         <section className="no-print mt-10 max-w-[80ch]" aria-labelledby="done">
-          <h2 id="done" className="text-[21px] font-extrabold tracking-[-0.01em] text-ink">
+          <h2 id="done" className="font-display text-[24px] font-semibold tracking-[-0.01em] text-ink">
             {t.done}
           </h2>
           {clearing ? (
-            <div className="mt-3 border-l-4 border-amber py-1 pl-4">
+            <div className="mt-3 border-l-[3px] border-alarm py-1 pl-4">
               <p>{t.clearText}</p>
               <span className="mt-3 flex flex-wrap gap-2">
-                <Button tone="ask" onClick={() => void s.reset()}>
+                <Button tone="alarm" onClick={() => void s.reset()}>
                   {t.remove}
                 </Button>
                 <Button tone="quiet" onClick={() => setClearing(false)}>
@@ -410,7 +423,7 @@ const capital = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 function Caution({ children }: { children: string }) {
   return (
     <span className="mt-1 flex items-start gap-1.5 text-[15px] font-semibold text-ink">
-      <TriangleAlert size={16} className="mt-[3px] shrink-0" aria-hidden /> {children}
+      <TriangleAlert size={16} className="mt-[3px] shrink-0 text-amber" aria-hidden /> {children}
     </span>
   );
 }
@@ -419,14 +432,14 @@ function QuestionCard({ q }: { q: WorklistQuestion }) {
   const t = useT(M);
   // the red rule at the left edge is the same mark as in the review: this needs an answer
   return (
-    <li className="break-inside-avoid border border-rule-strong border-l-4 border-l-amber bg-sheet px-4 py-3">
+    <li className="break-inside-avoid rounded-xl border border-rule border-l-[3px] border-l-amber bg-card px-5 py-4">
       <p className="flex flex-wrap items-baseline gap-x-3 text-[16px] text-ink-soft">
-        <span className="text-[19px] font-semibold text-ink">{q.patientName || t.noName}</span>
-        {q.patientId && <span className="tabular-nums">{q.patientId}</span>}
+        <span className="font-display text-[22px] font-semibold text-ink">{q.patientName || t.noName}</span>
+        {q.patientId && <span className="font-mono tabular-nums">{q.patientId}</span>}
         {q.bed && <span>{t.bed(q.bed)}</span>}
         <span className="tabular-nums">{q.time ? `${formatDate(q.date)} ${q.time}` : t.noTimeWritten}</span>
       </p>
-      <ul className="mt-2 border border-rule">
+      <ul className="mt-3 overflow-hidden rounded-lg border border-rule">
         {q.rows.map((r) => (
           <li key={r.source} className="grid border-b border-rule last:border-b-0 sm:grid-cols-[11rem_minmax(0,1fr)]">
             <span className="bg-well px-3 py-1.5 text-[14px] text-ink-soft">
@@ -456,12 +469,12 @@ function ActsTable({ rows }: { rows: WorklistItem[] }) {
     <div className="space-y-6">
       {groupBy(rows, (r) => r.patientKey ?? r.patientName).map(([key, list]) => (
         <div key={key} className="break-inside-avoid">
-          <h3 className="mb-1.5 flex flex-wrap items-baseline gap-x-3 text-[16px] text-ink-soft">
-            <span className="text-[19px] font-semibold text-ink">{list[0]!.patientName || t.noNameShort}</span>
-            <span className="tabular-nums">{list[0]!.patientId}</span>
+          <h3 className="mb-2 flex flex-wrap items-baseline gap-x-3 text-[16px] text-ink-soft">
+            <span className="font-display text-[22px] font-semibold text-ink">{list[0]!.patientName || t.noNameShort}</span>
+            <span className="font-mono tabular-nums">{list[0]!.patientId}</span>
             {list[0]!.bed && <span>{t.bed(list[0]!.bed)}</span>}
           </h3>
-          <ul className="border border-rule-strong bg-sheet">
+          <ul className="overflow-hidden rounded-xl border border-rule bg-card">
             {list.map((r) => {
               const tick = session.entered[r.actId] as Entered | boolean | undefined;
               return (
@@ -473,7 +486,7 @@ function ActsTable({ rows }: { rows: WorklistItem[] }) {
                     {r.time ? (
                       <>
                         <span className="text-ink-soft @3xl:block">{formatDate(r.date)} </span>
-                        <span className="text-[17px] font-semibold">{r.time}</span>
+                        <span className="font-mono text-[17px] font-semibold">{r.time}</span>
                       </>
                     ) : (
                       <span className="text-amber-ink">{t.noTime}</span>
@@ -482,7 +495,7 @@ function ActsTable({ rows }: { rows: WorklistItem[] }) {
                   <div className="px-3 py-2 @3xl:border-l @3xl:border-rule @3xl:py-2.5">
                     <span className={`font-mono text-[16px] tracking-[-0.015em] ${tick ? 'text-ink-faint line-through' : ''}`}>{r.act}</span>
                     {r.highAlert && (
-                      <span className="ml-2 inline-flex items-center gap-1 whitespace-nowrap rounded-[4px] border border-ink px-1.5 align-[1px] text-[13px] font-semibold">
+                      <span className="ml-2 inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-amber-line bg-amber-wash px-1.5 align-[1px] text-[13px] font-semibold text-amber-ink">
                         <TriangleAlert size={12} aria-hidden /> {t.highAlert}
                       </span>
                     )}
@@ -545,7 +558,7 @@ function AuditTrail() {
   };
   return (
     <details className="no-print mt-10 max-w-[80ch]">
-      <summary className="cursor-pointer text-[21px] font-extrabold tracking-[-0.01em] text-ink">{t.audit(session.audit.length)}</summary>
+      <summary className="cursor-pointer font-display text-[24px] font-semibold tracking-[-0.01em] text-ink">{t.audit(session.audit.length)}</summary>
       <p className="mt-2 text-ink-soft">
         {t.auditText}{' '}
         <button className="text-forest underline underline-offset-2" onClick={download}>

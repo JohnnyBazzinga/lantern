@@ -59,7 +59,7 @@ export function AnswerBox({ refId, owner, compact = false }: { refId: string; ow
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={t.placeholder(owner)}
-        className="min-h-[42px] min-w-0 flex-1 basis-[16rem] rounded-md border border-rule-strong bg-sheet px-3 py-1.5 text-[16px]"
+        className="min-h-[44px] min-w-0 flex-1 basis-[16rem] rounded-lg border border-field-line bg-sheet px-3 py-1.5 text-[16px]"
       />
       <Button tone="secondary" type="submit" disabled={!text.trim()}>
         {t.record}

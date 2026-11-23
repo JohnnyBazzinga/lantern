@@ -3,7 +3,8 @@ import { subscribeLedger, type LedgerEntry } from '../ai/ledger';
 import { useSession } from '../app/session';
 import { buildActs } from '../core/acts';
 import type { Act } from '../core/types';
-import { LanternMark, Route } from '../ui/kit';
+import { Backdrop } from '../ui/Backdrop';
+import { Card, Kicker, Route, Wordmark } from '../ui/kit';
 import { Tally } from '../ui/Tally';
 import { RELATION } from './Review';
 import { msgs } from '../i18n/lang';
@@ -20,6 +21,7 @@ const M = msgs(
       'extract-act': 'Read one entry',
     } as Record<string, string>,
     of: (done: number, total: number) => `${done} of ${total}`,
+    kicker: 'Lantern is working',
     readColumns: (file: string) => `Read the columns of ${file}`,
     second: 'Second opinion:',
     nano: 'Gemini Nano:',
@@ -43,6 +45,7 @@ const M = msgs(
       'extract-act': 'Leu um registo',
     },
     of: (done, total) => `${done} de ${total}`,
+    kicker: 'O Lantern está a trabalhar',
     readColumns: (file) => `Leu as colunas de ${file}`,
     second: 'Segunda opinião:',
     nano: 'Gemini Nano:',
@@ -99,26 +102,26 @@ export default function Working() {
   const secs = (ms: number) => <span className="whitespace-nowrap text-[15px] tabular-nums text-ink-soft">{(ms / 1000).toFixed(1)} s</span>;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-paper px-4 pb-10 pt-[7vh] sm:px-8 sm:pt-[10vh]" role="status" aria-live="polite">
-      <div className="mx-auto w-full max-w-[760px]">
-        <div className="mb-6 flex items-center gap-2 text-ink">
-          <LanternMark size={26} />
-          <span className="text-[19px] font-extrabold tracking-[-0.01em]">Lantern</span>
-        </div>
-        <div className="min-h-[5.5rem]">
-          <p className="font-display text-[28px] font-bold leading-[1.15] tracking-[-0.01em] text-ink sm:text-[34px]">{busy.stage}</p>
-          {busy.detail && <p className="mt-1.5 max-w-[64ch] text-[16px] text-ink-soft">{busy.detail}</p>}
+    <div className="fixed inset-0 z-50 isolate overflow-y-auto bg-paper px-4 pb-10 pt-6 sm:px-8" role="status" aria-live="polite">
+      <Backdrop variant="page" />
+      <div className="mx-auto w-full max-w-[1400px]">
+        <Wordmark />
+      </div>
+      <div className="mx-auto mt-[6vh] w-full max-w-[820px]">
+        <div className="min-h-[7.5rem]">
+          <Kicker>{t.kicker}</Kicker>
+          <p className="mt-4 font-display text-[32px] font-medium leading-[1.1] tracking-[-0.018em] text-ink sm:text-[44px]">{busy.stage}</p>
+          {busy.detail && <p className="mt-2 max-w-[64ch] text-[17px] text-ink-soft">{busy.detail}</p>}
         </div>
 
-        <div className="mt-5 flex items-center gap-4">
-          <div className="relative h-10 flex-1 rounded-[3px] bg-well" aria-hidden>
-            <div className="absolute inset-y-0 left-0 rounded-[3px] bg-forest transition-[width] duration-300" style={{ width: `${pct ?? 0}%` }} />
-            <span
-              className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-lamp transition-[left] duration-300 ${pct === null ? 'animate-pulse' : ''}`}
-              style={{ left: `max(20px, min(calc(100% - 20px), ${pct ?? 0}%))`, boxShadow: '0 0 0 4px rgb(245 184 74 / 0.28)' }}
+        <div className="mt-6 flex items-center gap-4">
+          <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-[#dde2d6]" aria-hidden>
+            <div
+              className={`absolute inset-y-0 left-0 rounded-full bg-forest transition-[width] duration-300 ${pct === null ? 'animate-pulse' : ''}`}
+              style={{ width: `${pct ?? 8}%` }}
             />
           </div>
-          <span className="w-[5.5rem] text-right text-[16px] tabular-nums text-ink-soft">{pct !== null ? t.of(busy.done, busy.total) : ''}</span>
+          <span className="w-[5.5rem] text-right font-mono text-[15px] tabular-nums text-ink-soft">{pct !== null ? t.of(busy.done, busy.total) : ''}</span>
         </div>
 
         {session && (
@@ -135,13 +138,13 @@ export default function Working() {
             </p>
           )}
           {lines.length > 0 && (
-            <ul className="border border-rule-strong bg-sheet">
+            <Card as="ul" className="overflow-hidden">
               {lines.map((l) => {
                 if ('entry' in l) {
                   const e = l.entry;
                   const file = e.task === 'map-columns' ? e.outgoingRefs[0]?.split('#')[0] : undefined;
                   return (
-                    <li key={l.key} className="flex items-center justify-between gap-3 border-b border-rule px-3 py-2 text-[16px] last:border-b-0">
+                    <li key={l.key} className="flex items-center justify-between gap-3 border-b border-rule px-5 py-3 text-[16px] last:border-b-0">
                       <span className="min-w-0">{file ? t.readColumns(file) : (t.task[e.task] ?? e.task)}</span>
                       <span className="flex shrink-0 items-center gap-3">
                         {secs(e.latencyMs)}
@@ -154,11 +157,11 @@ export default function Working() {
                 const a = acts.get(p.a);
                 const b = acts.get(p.b);
                 return (
-                  <li key={l.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-rule px-3 py-2 text-[16px] last:border-b-0">
+                  <li key={l.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-b border-rule px-5 py-3 text-[16px] last:border-b-0">
                     <span className="min-w-0">
                       {p.second && <span className="text-ink-soft">{t.second} </span>}
                       <span className="font-semibold">{a?.patientName || b?.patientName || t.bed(a?.bed ?? '')}</span>
-                      <span className="ml-3 whitespace-nowrap tabular-nums text-ink-soft">{t.times(a?.eventTime || t.noTime, b?.eventTime || t.noTime)}</span>
+                      <span className="ml-3 whitespace-nowrap font-mono text-[14.5px] tabular-nums text-ink-soft">{t.times(a?.eventTime || t.noTime, b?.eventTime || t.noTime)}</span>
                     </span>
                     <span className="row-span-2 flex shrink-0 items-center gap-3">
                       {p.ms !== null && secs(p.ms)}
@@ -177,7 +180,7 @@ export default function Working() {
                   </li>
                 );
               })}
-            </ul>
+            </Card>
           )}
         </div>
       </div>
