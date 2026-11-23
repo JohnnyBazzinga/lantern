@@ -165,7 +165,7 @@ export default function Result({ onBack }: { onBack: () => void }) {
   const inCloud = ledger.filter((e) => e.inferenceSource === 'in_cloud').length;
   usePageTitle(t.pageTitle);
   const total = key?.expected.worklist.approvedActs ?? 27;
-  const h2 = 'text-[21px] font-extrabold tracking-[-0.01em] text-night';
+  const h2 = 'text-[21px] font-extrabold tracking-[-0.01em] text-ink';
 
   return (
     <div className="flex min-h-full flex-col">
@@ -173,7 +173,7 @@ export default function Result({ onBack }: { onBack: () => void }) {
         <Tally kind={session.kind} />
       </AppBar>
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-16 pt-7 sm:px-8 sm:pt-10">
-        <h1 className="font-display text-[34px] font-bold leading-[1.08] tracking-[-0.01em] text-night sm:text-[44px]">{t.title}</h1>
+        <h1 className="font-display text-[34px] font-bold leading-[1.08] tracking-[-0.01em] text-ink sm:text-[44px]">{t.title}</h1>
         {scores && (
           <>
             <p className="mt-3 max-w-[70ch] text-[19px] leading-[1.5] text-ink-soft">
@@ -198,7 +198,7 @@ export default function Result({ onBack }: { onBack: () => void }) {
                 ).map(([k, got, ok]) => (
                   <li key={k} className="grid gap-x-6 border-b border-rule py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
                     <span className="text-[17px]">{t.traps[k]}</span>
-                    <span className={`flex items-center gap-2 text-[17px] tabular-nums ${ok ? 'font-semibold' : 'font-semibold text-pen'}`}>
+                    <span className={`flex items-center gap-2 text-[17px] tabular-nums ${ok ? 'font-semibold' : 'font-semibold text-amber-ink'}`}>
                       {ok && <StateGlyph state="done" />}
                       {got}
                     </span>
@@ -226,7 +226,7 @@ export default function Result({ onBack }: { onBack: () => void }) {
               <div className="mt-3 overflow-x-auto border border-rule-strong bg-sheet">
                 <table className="w-full min-w-[680px] border-collapse text-left text-[16px]">
                   <thead>
-                    <tr className="border-b border-rule-strong bg-gutter text-[14px] text-ink-soft">
+                    <tr className="border-b border-rule-strong bg-well text-[14px] text-ink-soft">
                       <th className="px-3 py-2 font-normal" />
                       <th className="border-l border-rule px-3 py-2 font-semibold text-ink">{t.you}</th>
                       <th className="border-l border-rule px-3 py-2 font-normal">{t.latest}</th>
@@ -319,10 +319,10 @@ function Bars({ total, rows }: { total: number; rows: [string, DrillScore][] }) 
   return (
     <div className="mt-4 max-w-[72rem]">
       <ul className="mb-4 flex flex-wrap gap-x-6 gap-y-1.5 text-[15px] text-ink-soft">
-        {key(t.seg.once, 'bg-night')}
-        {key(t.seg.waiting, 'border border-pen bg-sheet', hatch)}
-        {key(t.seg.lost, 'border border-dashed border-pen bg-sheet')}
-        {key(`${t.seg.unclear}; ${t.seg.twice}`, 'bg-pen')}
+        {key(t.seg.once, 'bg-forest')}
+        {key(t.seg.waiting, 'border border-amber bg-sheet', hatch)}
+        {key(t.seg.lost, 'border border-dashed border-amber bg-sheet')}
+        {key(`${t.seg.unclear}; ${t.seg.twice}`, 'bg-amber')}
       </ul>
       <div className="relative">
         <p className="mb-1 text-[14px] tabular-nums text-ink-soft" style={{ paddingLeft: `calc(${w(total)} - 4.5rem)` }}>
@@ -331,19 +331,19 @@ function Bars({ total, rows }: { total: number; rows: [string, DrillScore][] }) 
         <div className="space-y-4">
           {parts.map((p, i) => (
             <div key={p.label}>
-              <p className={`mb-1 text-[16px] ${i === 0 ? 'font-semibold text-night' : 'text-ink-soft'}`}>{p.label}</p>
+              <p className={`mb-1 text-[16px] ${i === 0 ? 'font-semibold text-ink' : 'text-ink-soft'}`}>{p.label}</p>
               <div className="flex h-10 gap-[2px]">
-                {seg(p.once, t.seg.once, 'bg-night text-white', true)}
-                {seg(p.waiting, t.seg.waiting, 'border border-pen bg-sheet text-ink', false, hatch)}
-                {seg(p.lost, t.seg.lost, 'border border-dashed border-pen bg-sheet text-pen')}
-                {seg(p.unclear, t.seg.unclear, 'bg-pen text-white')}
-                {seg(p.twice, t.seg.twice, 'bg-pen text-white', true)}
+                {seg(p.once, t.seg.once, 'bg-forest text-white', true)}
+                {seg(p.waiting, t.seg.waiting, 'border border-amber bg-sheet text-ink', false, hatch)}
+                {seg(p.lost, t.seg.lost, 'border border-dashed border-amber bg-sheet text-amber-ink')}
+                {seg(p.unclear, t.seg.unclear, 'bg-amber text-white')}
+                {seg(p.twice, t.seg.twice, 'bg-amber text-white', true)}
               </div>
             </div>
           ))}
         </div>
         {/* the line every bar is read against: the acts that really happened */}
-        <span className="pointer-events-none absolute bottom-0 top-6 w-0 border-l-2 border-night" style={{ left: w(total) }} aria-hidden />
+        <span className="pointer-events-none absolute bottom-0 top-6 w-0 border-l-2 border-forest" style={{ left: w(total) }} aria-hidden />
       </div>
     </div>
   );
@@ -366,10 +366,10 @@ function Differences({ you }: { you: DrillScore }) {
     return a ? `${a.patientName || t.bed(a.bed)}, ${a.eventTime || t.noTime}: ${a.actText}` : keyRow;
   };
   const groups = [
-    { title: t.gLost, rows: you.actsLost, tone: 'text-pen' },
-    { title: t.gTwice, rows: you.enteredTwice, tone: 'text-pen' },
+    { title: t.gLost, rows: you.actsLost, tone: 'text-amber-ink' },
+    { title: t.gTwice, rows: you.enteredTwice, tone: 'text-amber-ink' },
     { title: t.gNurse, rows: you.withNurse, tone: 'text-ink-soft' },
-    { title: t.gAmbiguous, rows: you.ambiguousEntered, tone: 'text-pen' },
+    { title: t.gAmbiguous, rows: you.ambiguousEntered, tone: 'text-amber-ink' },
   ].filter((g) => g.rows.length);
   if (!groups.length) return <p className="mt-4 text-[16px] font-semibold">{t.allGood}</p>;
   return (
@@ -389,7 +389,7 @@ function Differences({ you }: { you: DrillScore }) {
 }
 
 function Row({ label, v, s, good }: { label: string; v: (x: DrillScore) => string; s: { you: DrillScore; latest: DrillScore; exact: DrillScore }; good: (x: DrillScore) => boolean }) {
-  const cell = (x: DrillScore) => <td className={`border-l border-rule px-3 py-2 tabular-nums ${good(x) ? '' : 'font-semibold text-pen'}`}>{v(x)}</td>;
+  const cell = (x: DrillScore) => <td className={`border-l border-rule px-3 py-2 tabular-nums ${good(x) ? '' : 'font-semibold text-amber-ink'}`}>{v(x)}</td>;
   return (
     <tr className="border-b border-rule last:border-b-0">
       <th scope="row" className="px-3 py-2 font-normal">

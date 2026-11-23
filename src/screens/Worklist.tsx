@@ -224,17 +224,17 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
         <Tally kind={session.kind} />
       </AppBar>
       <main className="@container mx-auto w-full max-w-[1280px] flex-1 px-4 pb-16 pt-7 sm:px-8 sm:pt-10 print:max-w-none print:p-0">
-        <h1 className="font-display text-[34px] font-bold leading-[1.08] tracking-[-0.01em] text-night sm:text-[44px] print:text-[22px]">{t.title}</h1>
+        <h1 className="font-display text-[34px] font-bold leading-[1.08] tracking-[-0.01em] text-ink sm:text-[44px] print:text-[22px]">{t.title}</h1>
 
         {/* the three numbers that say where re-entry stands; "ready" and "entered" are kept apart on purpose */}
         <dl className="mt-5 grid border-y border-rule-strong sm:grid-cols-3 print:hidden">
           {[
             { n: wl.ready.length, label: t.sumReady(wl.ready.length), tone: '' },
-            { n: wl.questions.length, label: t.sumWaiting(wl.questions.length, waitingRows), tone: wl.questions.length ? 'text-pen' : '' },
+            { n: wl.questions.length, label: t.sumWaiting(wl.questions.length, waitingRows), tone: wl.questions.length ? 'text-amber-ink' : '' },
             { n: entered, label: t.sumEntered(wl.ready.length), tone: '' },
           ].map((x, i) => (
             <div key={i} className={`flex items-baseline gap-3 py-3 sm:px-5 sm:first:pl-0 ${i ? 'border-t border-rule sm:border-l sm:border-t-0' : ''}`}>
-              <dd className={`text-[34px] font-extrabold leading-none tabular-nums ${x.tone || 'text-night'}`}>{x.n}</dd>
+              <dd className={`text-[34px] font-extrabold leading-none tabular-nums ${x.tone || 'text-ink'}`}>{x.n}</dd>
               <dt className={`text-[16px] leading-snug ${x.tone || 'text-ink-soft'}`}>{x.label}</dt>
             </div>
           ))}
@@ -246,7 +246,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
 
         {wl.undecided.length > 0 && (
           <div className="no-print mt-5 max-w-[76ch]">
-            <Notice tone="pen">
+            <Notice tone="ask">
               {t.incomplete(wl.undecided.length)}{' '}
               <Button tone="secondary" className="ml-2" onClick={onBack}>
                 {t.finishReview}
@@ -306,13 +306,13 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
                       setTab(p.key);
                       e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' });
                     }}
-                    className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap border-b-[3px] px-3 py-2 text-left ${on ? 'border-night text-night' : 'border-transparent text-ink-soft hover:text-night'}`}
+                    className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap border-b-[3px] px-3 py-2 text-left ${on ? 'border-forest text-ink' : 'border-transparent text-ink-soft hover:text-ink'}`}
                   >
                     <span className="text-[19px] font-extrabold tracking-[-0.01em]">{p.tab}</span>
                     <span className="text-[15px] tabular-nums">
                       {t.counts(p.acts.length, 0)}
                       {p.questions.length > 0 && (
-                        <span className="text-pen">
+                        <span className="text-amber-ink">
                           {p.acts.length ? ', ' : ''}
                           {t.counts(0, p.questions.length)}
                         </span>
@@ -328,7 +328,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
                 <p className="print-only mb-4 border-b border-black pb-2 text-[13px] font-semibold">{t.printHead(p.who, formatDate(nightOf))}</p>
                 {p.questions.length > 0 && (
                   <div className="mb-9">
-                    <h2 className="text-[21px] font-extrabold tracking-[-0.01em] text-pen">{t.forOwner(p.tab, p.questions.length)}</h2>
+                    <h2 className="text-[21px] font-extrabold tracking-[-0.01em] text-amber-ink">{t.forOwner(p.tab, p.questions.length)}</h2>
                     <p className="mb-4 mt-1 max-w-[76ch] text-[16px] text-ink-soft print:hidden">{t.questionsText}</p>
                     <ul className="space-y-3">
                       {p.questions.map((q) => (
@@ -339,7 +339,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
                 )}
                 {p.acts.length > 0 ? (
                   <>
-                    <h2 className="text-[21px] font-extrabold tracking-[-0.01em] text-night">{p.clerk ? t.clerk : t.toEnterLate(p.who, p.acts.length)}</h2>
+                    <h2 className="text-[21px] font-extrabold tracking-[-0.01em] text-ink">{p.clerk ? t.clerk : t.toEnterLate(p.who, p.acts.length)}</h2>
                     <p className="mb-4 mt-1 max-w-[80ch] text-[16px] text-ink-soft">
                       {p.clerk ? (
                         t.clerkText
@@ -361,7 +361,7 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
         )}
 
         <section className="mt-14 max-w-[80ch] border-t border-rule-strong pt-7 print:hidden" aria-labelledby="keep">
-          <h2 id="keep" className="text-[21px] font-extrabold tracking-[-0.01em] text-night">
+          <h2 id="keep" className="text-[21px] font-extrabold tracking-[-0.01em] text-ink">
             {t.keep}
           </h2>
           <p className="mt-1 text-[16px] text-ink-soft">{t.keepText}</p>
@@ -378,14 +378,14 @@ export default function Worklist({ onBack, onResult }: { onBack: () => void; onR
         <AuditTrail />
 
         <section className="no-print mt-10 max-w-[80ch]" aria-labelledby="done">
-          <h2 id="done" className="text-[21px] font-extrabold tracking-[-0.01em] text-night">
+          <h2 id="done" className="text-[21px] font-extrabold tracking-[-0.01em] text-ink">
             {t.done}
           </h2>
           {clearing ? (
-            <div className="mt-3 border-l-4 border-pen py-1 pl-4">
+            <div className="mt-3 border-l-4 border-amber py-1 pl-4">
               <p>{t.clearText}</p>
               <span className="mt-3 flex flex-wrap gap-2">
-                <Button tone="pen" onClick={() => void s.reset()}>
+                <Button tone="ask" onClick={() => void s.reset()}>
                   {t.remove}
                 </Button>
                 <Button tone="quiet" onClick={() => setClearing(false)}>
@@ -419,7 +419,7 @@ function QuestionCard({ q }: { q: WorklistQuestion }) {
   const t = useT(M);
   // the red rule at the left edge is the same mark as in the review: this needs an answer
   return (
-    <li className="break-inside-avoid border border-rule-strong border-l-4 border-l-pen bg-sheet px-4 py-3">
+    <li className="break-inside-avoid border border-rule-strong border-l-4 border-l-amber bg-sheet px-4 py-3">
       <p className="flex flex-wrap items-baseline gap-x-3 text-[16px] text-ink-soft">
         <span className="text-[19px] font-semibold text-ink">{q.patientName || t.noName}</span>
         {q.patientId && <span className="tabular-nums">{q.patientId}</span>}
@@ -429,7 +429,7 @@ function QuestionCard({ q }: { q: WorklistQuestion }) {
       <ul className="mt-2 border border-rule">
         {q.rows.map((r) => (
           <li key={r.source} className="grid border-b border-rule last:border-b-0 sm:grid-cols-[11rem_minmax(0,1fr)]">
-            <span className="bg-gutter px-3 py-1.5 text-[14px] text-ink-soft">
+            <span className="bg-well px-3 py-1.5 text-[14px] text-ink-soft">
               {r.source}
               {r.by && t.by(r.by)}
             </span>
@@ -466,8 +466,8 @@ function ActsTable({ rows }: { rows: WorklistItem[] }) {
               const tick = session.entered[r.actId] as Entered | boolean | undefined;
               return (
                 <li key={r.actId} className="grid grid-cols-[2.75rem_minmax(0,1fr)] border-b border-rule last:border-b-0 @3xl:grid-cols-[2.75rem_7.5rem_minmax(0,1fr)_14rem]">
-                  <label className="row-span-3 flex cursor-pointer justify-center bg-gutter pt-3 @3xl:row-span-1">
-                    <input type="checkbox" aria-label={t.entered(r.act)} checked={!!tick} onChange={() => s.toggleEntered(r.actId)} className="h-5 w-5 accent-[var(--color-night)]" />
+                  <label className="row-span-3 flex cursor-pointer justify-center bg-well pt-3 @3xl:row-span-1">
+                    <input type="checkbox" aria-label={t.entered(r.act)} checked={!!tick} onChange={() => s.toggleEntered(r.actId)} className="h-5 w-5 accent-[var(--color-forest)]" />
                   </label>
                   <div className="px-3 pt-2.5 text-[15px] tabular-nums @3xl:pb-2.5">
                     {r.time ? (
@@ -476,7 +476,7 @@ function ActsTable({ rows }: { rows: WorklistItem[] }) {
                         <span className="text-[17px] font-semibold">{r.time}</span>
                       </>
                     ) : (
-                      <span className="text-pen">{t.noTime}</span>
+                      <span className="text-amber-ink">{t.noTime}</span>
                     )}
                   </div>
                   <div className="px-3 py-2 @3xl:border-l @3xl:border-rule @3xl:py-2.5">
@@ -497,7 +497,7 @@ function ActsTable({ rows }: { rows: WorklistItem[] }) {
                         ))}
                       </span>
                     )}
-                    {r.confirmBy && <span className="mt-1 block text-[15px] font-semibold text-pen">{t.mustConfirm(r.confirmBy)}</span>}
+                    {r.confirmBy && <span className="mt-1 block text-[15px] font-semibold text-amber-ink">{t.mustConfirm(r.confirmBy)}</span>}
                     {r.note && <span className="mt-0.5 block text-[15px]">{r.note}</span>}
                     {r.clinicalPartBy && <span className="mt-0.5 block text-[15px] text-ink-soft">{t.obsBy(r.clinicalPartBy)}</span>}
                     {r.followUp && <Caution>{r.followUp}</Caution>}
@@ -513,7 +513,7 @@ function ActsTable({ rows }: { rows: WorklistItem[] }) {
                     <span className="block text-ink-faint">{r.source}</span>
                     <button
                       type="button"
-                      className="no-print mt-1 inline-flex items-center gap-1 text-[15px] text-ballpoint underline-offset-2 hover:underline"
+                      className="no-print mt-1 inline-flex items-center gap-1 text-[15px] text-forest underline-offset-2 hover:underline"
                       onClick={() => {
                         void navigator.clipboard?.writeText(r.lateEntry).then(() => setCopied(r.actId));
                       }}
@@ -545,10 +545,10 @@ function AuditTrail() {
   };
   return (
     <details className="no-print mt-10 max-w-[80ch]">
-      <summary className="cursor-pointer text-[21px] font-extrabold tracking-[-0.01em] text-night">{t.audit(session.audit.length)}</summary>
+      <summary className="cursor-pointer text-[21px] font-extrabold tracking-[-0.01em] text-ink">{t.audit(session.audit.length)}</summary>
       <p className="mt-2 text-ink-soft">
         {t.auditText}{' '}
-        <button className="text-ballpoint underline underline-offset-2" onClick={download}>
+        <button className="text-forest underline underline-offset-2" onClick={download}>
           {t.auditDownload}
         </button>
       </p>

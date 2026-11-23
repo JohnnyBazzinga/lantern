@@ -101,18 +101,18 @@ export default function Working() {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-paper px-4 pb-10 pt-[7vh] sm:px-8 sm:pt-[10vh]" role="status" aria-live="polite">
       <div className="mx-auto w-full max-w-[760px]">
-        <div className="mb-6 flex items-center gap-2 text-night">
+        <div className="mb-6 flex items-center gap-2 text-ink">
           <LanternMark size={26} />
           <span className="text-[19px] font-extrabold tracking-[-0.01em]">Lantern</span>
         </div>
         <div className="min-h-[5.5rem]">
-          <p className="font-display text-[28px] font-bold leading-[1.15] tracking-[-0.01em] text-night sm:text-[34px]">{busy.stage}</p>
+          <p className="font-display text-[28px] font-bold leading-[1.15] tracking-[-0.01em] text-ink sm:text-[34px]">{busy.stage}</p>
           {busy.detail && <p className="mt-1.5 max-w-[64ch] text-[16px] text-ink-soft">{busy.detail}</p>}
         </div>
 
         <div className="mt-5 flex items-center gap-4">
-          <div className="relative h-10 flex-1 rounded-[3px] bg-gutter" aria-hidden>
-            <div className="absolute inset-y-0 left-0 rounded-[3px] bg-night transition-[width] duration-300" style={{ width: `${pct ?? 0}%` }} />
+          <div className="relative h-10 flex-1 rounded-[3px] bg-well" aria-hidden>
+            <div className="absolute inset-y-0 left-0 rounded-[3px] bg-forest transition-[width] duration-300" style={{ width: `${pct ?? 0}%` }} />
             <span
               className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-lamp transition-[left] duration-300 ${pct === null ? 'animate-pulse' : ''}`}
               style={{ left: `max(20px, min(calc(100% - 20px), ${pct ?? 0}%))`, boxShadow: '0 0 0 4px rgb(245 184 74 / 0.28)' }}

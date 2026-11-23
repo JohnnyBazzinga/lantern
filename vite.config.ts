@@ -20,7 +20,7 @@ const commit = (() => {
  * in the cache; the service worker precaches every font for offline use.)
  */
 function preloadFonts(): Plugin {
-  const first = /(atkinson-hyperlegible-next-latin-wght-normal|literata-latin-opsz-normal)-[\w-]+\.woff2$/;
+  const first = /(inter-latin-wght-normal|newsreader-latin-opsz-normal)-[\w-]+\.woff2$/;
   return {
     name: 'lantern-preload-fonts',
     transformIndexHtml: {
@@ -49,7 +49,7 @@ export default defineConfig({
         short_name: 'Lantern',
         description:
           'Turn the paper and spreadsheets of a hospital IT outage into a validated re-entry worklist, on-device.',
-        theme_color: '#0f1b2d',
+        theme_color: '#0e3b2c',
         background_color: '#f4f2ee',
         display: 'standalone',
         // PNGs for the install prompt (rendered from the mark); the maskable one keeps the lantern inside the safe zone

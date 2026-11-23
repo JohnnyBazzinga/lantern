@@ -19,7 +19,7 @@ const OPTIONS: { lang: Lang; short: string; name: string }[] = [
 export function LangToggle({ className = '' }: { className?: string }) {
   const lang = useLang();
   return (
-    <div role="group" aria-label={lang === 'pt' ? 'Idioma' : 'Language'} className={`no-print inline-flex rounded-md border border-rule-strong bg-sheet p-0.5 ${className}`}>
+    <div role="group" aria-label={lang === 'pt' ? 'Idioma' : 'Language'} className={`no-print inline-flex rounded-lg border border-ink/80 bg-sheet p-[3px] ${className}`}>
       {OPTIONS.map((o) => (
         <button
           key={o.lang}
@@ -28,8 +28,8 @@ export function LangToggle({ className = '' }: { className?: string }) {
           aria-pressed={lang === o.lang}
           title={o.name}
           onClick={() => setLang(o.lang)}
-          className={`rounded-[4px] px-2 py-0.5 text-[13px] font-semibold tabular-nums transition-colors ${
-            lang === o.lang ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink'
+          className={`rounded-md px-2.5 py-1 text-[13px] font-semibold tabular-nums transition-colors ${
+            lang === o.lang ? 'bg-forest text-white' : 'text-ink hover:bg-well'
           }`}
         >
           <span aria-hidden>{o.short}</span>

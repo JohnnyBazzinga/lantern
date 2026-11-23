@@ -137,9 +137,9 @@ export function Stack({ rows }: { rows: StackRow[] }) {
   const cellText = (c: Cell) =>
     !c.value && c.blank ? (
       // an empty cell is described in Lantern's words, never in the ward's typeface
-      <span className="block whitespace-nowrap text-[15px] leading-[1.55] text-ink-soft">{c.blankDiffers ? <mark className="diff">{c.blank}</mark> : c.blank}</span>
+      <span className="block whitespace-nowrap text-[15px] italic leading-[1.55] text-ink-soft">{c.blankDiffers ? <mark className="diff">{c.blank}</mark> : c.blank}</span>
     ) : (
-    <span className="block font-mono text-[16px] leading-[1.45] tracking-[-0.015em] break-words">
+    <span className="block font-mono text-[16px] leading-[1.45] tracking-[-0.01em] break-words">
       {c.lines && c.lines.length > 1 ? (
         c.lines.map((line, i) => (
           <span key={i} className="block">
@@ -153,21 +153,21 @@ export function Stack({ rows }: { rows: StackRow[] }) {
     );
   return (
     <>
-      <table className="hidden w-full table-fixed border-collapse border border-rule-strong bg-sheet text-left @3xl:table">
+      <table className="hidden w-full table-fixed border-separate border-spacing-0 overflow-hidden rounded-xl border border-rule bg-card text-left @3xl:table">
         <caption className="sr-only">{t.caption}</caption>
         <colgroup>
-          <col style={{ width: '10rem' }} />
+          <col style={{ width: '12.5rem' }} />
           {fields.map((f) => (
             <col key={f} style={{ width: f === 'notes' && fields.includes('patient') ? '22%' : WIDTH[f] }} />
           ))}
         </colgroup>
         <thead>
-          <tr className="border-b border-rule-strong bg-gutter text-[14px] text-ink-soft">
-            <th scope="col" className="px-3 py-2 font-normal">
+          <tr className="bg-well text-[14px] text-ink">
+            <th scope="col" className="px-4 py-2.5 font-semibold">
               {t.source}
             </th>
             {fields.map((f) => (
-              <th key={f} scope="col" className="border-l border-rule px-3 py-2 font-normal">
+              <th key={f} scope="col" className="px-4 py-2.5 font-semibold">
                 {f === 'by' ? t.byShort : t.field[f]}
               </th>
             ))}
@@ -175,22 +175,22 @@ export function Stack({ rows }: { rows: StackRow[] }) {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.key} className="border-b border-rule last:border-b-0">
-              <th scope="row" className="border-r border-rule-strong bg-gutter px-3 py-3 align-top font-normal" title={t.fileRow(r.fileName, r.sheetRow)}>
+            <tr key={r.key}>
+              <th scope="row" className="border-t border-r border-rule bg-well px-4 py-3 align-top font-normal" title={t.fileRow(r.fileName, r.sheetRow)}>
                 <span className="block text-[15px] font-semibold leading-snug text-ink">{r.label.replace(/-/g, '\u2011')}</span>
-                <span className="block text-[14px] tabular-nums text-ink-soft">{t.row(r.sheetRow)}</span>
+                <span className="mt-0.5 block text-[13.5px] tabular-nums text-ink-soft">{t.row(r.sheetRow)}</span>
               </th>
               {fields.map((f) => {
                 const c = r.cells[f];
                 if (!c)
                   return (
-                    <td key={f} className="no-cell border-l border-rule">
+                    <td key={f} className="no-cell border-t border-l border-rule">
                       <span className="sr-only">{t.notInSource}</span>
                     </td>
                   );
                 return (
-                  <td key={f} className="border-l border-rule px-3 pb-3.5 pt-2 align-top">
-                    <span className="block h-[18px] text-[13px] leading-[18px] tabular-nums text-ink-faint">{c.ref}</span>
+                  <td key={f} className="border-t border-l border-rule px-4 pb-3.5 pt-2 align-top">
+                    <span className="block h-[18px] text-[12px] leading-[18px] tabular-nums text-ink-faint">{c.ref}</span>
                     {cellText(c)}
                   </td>
                 );
@@ -200,8 +200,8 @@ export function Stack({ rows }: { rows: StackRow[] }) {
         </tbody>
       </table>
 
-      <div className="border border-rule-strong bg-sheet @3xl:hidden">
-        <ul className="border-b border-rule-strong bg-gutter px-3 py-2 text-[15px]">
+      <div className="overflow-hidden rounded-xl border border-rule bg-card @3xl:hidden">
+        <ul className="border-b border-rule bg-well px-3 py-2 text-[15px]">
           {rows.map((r) => (
             <li key={r.key}>
               <span className="font-semibold">{r.label}</span> <span className="text-ink-soft">{t.fileRow(r.fileName, r.sheetRow)}</span>
@@ -211,7 +211,7 @@ export function Stack({ rows }: { rows: StackRow[] }) {
         <dl>
           {fields.map((f) => (
             <div key={f} className="border-b border-rule last:border-b-0">
-              <dt className="bg-gutter/60 px-3 py-1 text-[14px] text-ink-soft">{t.field[f]}</dt>
+              <dt className="bg-well/60 px-3 py-1 text-[14px] text-ink-soft">{t.field[f]}</dt>
               {rows.map((r) => {
                 const c = r.cells[f];
                 if (!c) return null;
@@ -238,10 +238,10 @@ export function PatientLine({ act, override }: { act: Act; override?: { patientN
   const name = override?.patientName ?? act.patientName;
   const id = override?.patientId ?? act.patientId;
   return (
-    <p className="flex flex-wrap items-baseline gap-x-3 text-[19px] text-ink-soft">
-      <span className="font-display text-[36px] font-bold leading-[1.1] tracking-[-0.01em] text-night">{name || t.noName}</span>
-      {id && <span className="tabular-nums">{id}</span>}
-      {act.bed && <span>{t.bedN(act.bed)}</span>}
+    <p className="flex flex-wrap items-baseline gap-x-5 text-[19px] text-ink-soft">
+      <span className="font-display text-[38px] font-semibold leading-[1.1] tracking-[-0.015em] text-ink sm:text-[46px]">{name || t.noName}</span>
+      {id && <span className="font-mono text-[19px] tabular-nums">{id}</span>}
+      {act.bed && <span className="text-[19px]">{t.bedN(act.bed)}</span>}
     </p>
   );
 }

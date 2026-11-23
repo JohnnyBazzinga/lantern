@@ -1,53 +1,88 @@
 @import "tailwindcss";
 /* Bundled, so the service worker precaches them and a first offline load has its fonts. */
-@import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
 @import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css";
 
-/* Literata, Latin only: the package also ships Greek, Cyrillic and Vietnamese, which would only pad the offline cache. */
+/* Latin and Latin Extended only: the packages also ship Greek, Cyrillic and Vietnamese, which would only pad the offline cache. */
 @font-face {
-  font-family: 'Literata Variable';
+  font-family: 'Newsreader Variable';
   font-style: normal;
   font-display: swap;
-  font-weight: 200 900;
-  src: url(../node_modules/@fontsource-variable/literata/files/literata-latin-ext-opsz-normal.woff2) format('woff2-variations');
+  font-weight: 200 800;
+  src: url(../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-ext-opsz-normal.woff2) format('woff2-variations');
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 @font-face {
-  font-family: 'Literata Variable';
+  font-family: 'Newsreader Variable';
   font-style: normal;
   font-display: swap;
-  font-weight: 200 900;
-  src: url(../node_modules/@fontsource-variable/literata/files/literata-latin-opsz-normal.woff2) format('woff2-variations');
+  font-weight: 200 800;
+  src: url(../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2) format('woff2-variations');
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+/* The night nurse's handwriting on the start page's paper note, and nowhere else. */
+@font-face {
+  font-family: 'Caveat Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 700;
+  src: url(../node_modules/@fontsource-variable/caveat/files/caveat-latin-wght-normal.woff2) format('woff2-variations');
 }
 
 /*
- * The morning desk, and the night on it.
- * A warm desk, a bright working surface with strips cut from the ward's own spreadsheets, and one dark band
- * (the hours the record was down) wherever time matters. Colour is only ever a signal:
- * highlighter for what differs between versions, red pen for what needs a decision or an answer,
- * scrub teal for "ran on this device", ballpoint blue for "ran in the cloud".
+ * A calm ward in daylight. A warm off-white ground, soft cards, one deep forest green for what you
+ * act on and where you are, mint for what ran on this device and for labels.
+ * Colour is a signal:
+ *   amber  = an answer or a look is still needed (the problem, "Ask the nurse", a column read from its header only)
+ *   red    = it blocks, or it is wrong (settle the identity first, an error, a lost act)
+ *   yellow = the highlighter: what differs between two versions of the same act
+ *   leaf   = the soft green marker under the last words of a big title
  */
 @theme {
-  --color-night: #0f1b2d; /* the outage band, the primary action, the strongest ink */
-  --color-night-soft: #1f2f49;
-  --color-paper: #f4f2ee; /* the desk: page ground, queue, bars */
-  --color-sheet: #ffffff; /* the working surface: evidence and the open item */
-  --color-gutter: #e9e6df; /* sheet gutters and headers, as in a spreadsheet */
-  --color-ink: #16202c;
-  --color-ink-soft: #474f5a;
-  --color-ink-faint: #5f6670;
-  --color-rule: #d9d5cc;
-  --color-rule-strong: #857f75; /* 4:1 on the sheet: control and sheet borders */
-  --color-pen: #b92d22;
-  --color-pen-wash: #fbeae8;
-  --color-marker: #ffdd55;
-  --color-scrub: #0b6e63;
-  --color-scrub-wash: #dff1ee;
-  --color-ballpoint: #2452cc;
-  --color-ballpoint-wash: #e6ecfb;
+  --color-paper: #f4f2ee; /* the page ground */
+  --color-card: #faf8f4; /* cards, the queue, table cells */
+  --color-sheet: #fdfcfa; /* fields, selects, secondary buttons */
+  --color-well: #edece5; /* table headers, the source column, value chips */
+  --color-stone: #efebe5; /* neutral chips: the cloud, the rules */
+  --color-rule: #e6e2da; /* card and table lines */
+  --color-rule-strong: #cbc5ba; /* control borders */
+  --color-ink: #111714;
+  --color-ink-soft: #4a524d;
+  --color-ink-faint: #5e6661;
 
-  /* Lab (internal diagnostics page) keeps its own dark palette; `lamp` is also the lamp on the night line */
+  --color-forest: #0e3b2c; /* the primary action, the current step, the wave */
+  --color-forest-deep: #0a2e22;
+  --color-forest-wave: #10302c;
+  --color-moss: #1e6b3a; /* the green tick */
+  --color-mint: #e5efde; /* labels, "on this device", the open item */
+  --color-mint-line: #cddfc3;
+  --color-sage: #ecf0e8; /* information bands */
+  --color-leaf: #dce8c8; /* the marker under a title */
+
+  --color-amber: #b4560f;
+  --color-amber-ink: #9a3b05;
+  --color-amber-wash: #fbf1de;
+  --color-amber-line: #ddb585;
+  --color-alarm: #a8120a;
+  --color-alarm-wash: #fbebe8;
+  --color-marker: #fce07f;
+
+  /* Lab (internal diagnostics page) keeps its own dark palette */
   --color-ink-950: #0b0d11;
   --color-ink-900: #0f1115;
   --color-ink-850: #14171d;
@@ -62,29 +97,16 @@
   --color-cloud: #7aa7ff;
   --color-alert: #ff7a6b;
 
-  /* Two voices. Next is Lantern speaking. Mono is the ward speaking: it is used only for text copied
-     from a source cell, where every character is evidence. Atkinson Hyperlegible is drawn so that
-     0 O, 1 l I and 5 S cannot be mistaken for each other, which is this product's whole subject. */
-  --font-sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
+  /* Three voices. Newsreader for titles and names; Inter is Lantern speaking. Mono is the ward speaking:
+     only text copied from a source cell, where every character is evidence. Atkinson Hyperlegible Mono
+     slashes its zero and gives 1, l and I different shapes, which is this product's whole subject. */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Atkinson Hyperlegible Mono Variable", "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* A third face, at large sizes only: the start headline, screen titles and the patient's name.
-     Literata was drawn for reading on screens; its strokes stay sturdy when a recording is compressed.
-     Anything that can be mistaken for something else (numbers, times, doses) stays in Atkinson. */
-  --font-display: "Literata Variable", Georgia, "Times New Roman", serif;
-  --font-weight-semibold: 650;
-  --font-weight-extrabold: 800;
+  --font-display: "Newsreader Variable", Georgia, "Times New Roman", serif;
+  --font-hand: "Caveat Variable", "Segoe Print", cursive;
 
-  --animate-night-draw: night-draw 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
   --animate-lamp-on: lamp-on 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
-  @keyframes night-draw {
-    from {
-      clip-path: inset(0 100% 0 0);
-    }
-    to {
-      clip-path: inset(0 0 0 0);
-    }
-  }
   @keyframes lamp-on {
     from {
       opacity: 0;
@@ -111,15 +133,34 @@ body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 17px;
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
+.font-display {
+  font-optical-sizing: auto;
+}
+
 :focus-visible {
-  outline: 3px solid var(--color-ballpoint);
+  outline: 3px solid var(--color-forest);
   outline-offset: 2px;
+}
+
+/* The marker under the last words of a big title: a soft green stroke with feathered ends, behind the ink. */
+.marker-leaf {
+  position: relative;
+  white-space: nowrap;
+}
+.marker-leaf::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0.2em -0.14em 0.02em -0.12em;
+  background: var(--color-leaf);
+  border-radius: 0.35em 0.5em 0.4em 0.3em;
+  filter: blur(2.5px);
 }
 
 /* The highlighter: marks what differs between two versions of the same act. When an item opens it
@@ -127,9 +168,9 @@ body {
 mark.diff {
   background: linear-gradient(var(--color-marker), var(--color-marker)) no-repeat left center / 100% 100%;
   color: inherit;
-  padding: 1px 2px;
+  padding: 1px 3px;
   margin: 0 -2px;
-  border-radius: 2px;
+  border-radius: 3px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   animation: lit 320ms 120ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
@@ -146,7 +187,16 @@ mark.diff {
 
 /* a cell the source does not have (the census has no "what was done") */
 .no-cell {
-  background: repeating-linear-gradient(135deg, transparent 0 6px, var(--color-gutter) 6px 7px);
+  background: repeating-linear-gradient(135deg, transparent 0 7px, var(--color-rule) 7px 8px);
+}
+
+/* Uppercase labels: the mockups' small spaced capitals ("CHECK THE PATIENT", "STEP 1 OF 3"). */
+.caps {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 @media (prefers-reduced-motion: reduce) {

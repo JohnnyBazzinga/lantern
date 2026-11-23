@@ -1,12 +1,13 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { prepareLocalModel } from '../ai/models';
 import { mapColumnsTask } from '../ai/prompts/v1/mapColumns';
 import { sessionTitle, useSession } from '../app/session';
 import { locale, msgs } from '../i18n/lang';
 import { LangToggle, useT } from '../i18n/react';
-import { nightMinutes } from '../core/text';
-import { Button, LanternMark, Notice, Route, usePageTitle } from '../ui/kit';
-import { NightLine } from '../ui/NightLine';
+import { ArrowRight, BookOpen, Check, Clock, Cloud, CloudOff, FileText, Laptop, Play, Scale, ScanSearch, Upload, Users } from 'lucide-react';
+import { Backdrop } from '../ui/Backdrop';
+import { HeroNight } from '../ui/HeroNight';
+import { Button, Card, Kicker, Marked, Notice, Wordmark, usePageTitle } from '../ui/kit';
 
 const M = msgs(
   {
@@ -17,6 +18,23 @@ const M = msgs(
       { t: '08:30', title: 'The systems are back', text: 'Rita, the clinical secretary, has two versions and the 21:00 census. Everything has to go back into the record.' },
     ],
     nightTitle: 'The night in the drill',
+    nav: { overview: 'Overview', drill: 'The drill', how: 'How it works', privacy: 'Data & privacy' },
+    navLabel: 'On this page',
+    kicker: 'Outage recovery for real care',
+    head: ['Bring the night back', 'into', 'the record.'],
+    seeHow: 'See how it works',
+    minutes: '~10 minutes',
+    fictional: 'Fictional ward · fictional patients',
+    heroNotes: [
+      { t: '21:40', text: 'Record goes down' },
+      { t: '03:10', text: 'v1 emailed' },
+      { t: '07:40', text: 'v2, reply-all' },
+      { t: '08:30', text: 'Systems are back' },
+    ],
+    heroChip: 'Match · Rebuild · Restore',
+    stateDevice: 'On this device',
+    stateNone: 'No on-device AI',
+    wardSign: 'Ward 7B',
     down: (h: number, m: number) => `The electronic record is down for ${h} h ${m} min`,
     headline: ['The systems are back.', 'Now last night has to go back into the record.'],
     lede:
@@ -37,7 +55,7 @@ const M = msgs(
     details: 'What the browser reported:',
     ownTitle: 'Use your own files',
     ownText:
-      "Pick two versions of the same downtime log, and the census if you have one. They are read in this browser and never uploaded; comparisons run on this device only. Even without an on-device model, Lantern flags identical rows, corrections, possible repeat doses and identity problems. The reviewer decides whatever is left open.",
+      'Pick two versions of the same downtime log, and the census if you have one. They are read in this browser and never uploaded; comparisons run on this device only.',
     census: 'Census (optional)',
     earlier: 'Earlier version',
     later: 'Later version',
@@ -85,6 +103,23 @@ const M = msgs(
       { t: '08:30', title: 'Os sistemas voltam', text: 'Rita, do secretariado clínico, tem duas versões e a lista de doentes das 21:00. Tudo tem de voltar ao processo clínico.' },
     ],
     nightTitle: 'A noite do simulacro',
+    nav: { overview: 'Visão geral', drill: 'O simulacro', how: 'Como funciona', privacy: 'Dados e privacidade' },
+    navLabel: 'Nesta página',
+    kicker: 'Recuperar os registos depois de uma falha',
+    head: ['Devolva a noite', 'ao', 'processo clínico.'],
+    seeHow: 'Ver como funciona',
+    minutes: '~10 minutos',
+    fictional: 'Enfermaria e doentes fictícios · registos em inglês',
+    heroNotes: [
+      { t: '21:40', text: 'Registo em baixo' },
+      { t: '03:10', text: 'v1 por email' },
+      { t: '07:40', text: 'v2, resposta a todos' },
+      { t: '08:30', text: 'Sistemas de volta' },
+    ],
+    heroChip: 'Comparar · Reconstruir · Repor',
+    stateDevice: 'Neste computador',
+    stateNone: 'Sem IA local',
+    wardSign: 'Enfermaria 7B',
     down: (h, m) => `Processo clínico eletrónico indisponível durante ${h} h ${m} min`,
     headline: ['Os sistemas voltaram.', 'Falta registar tudo o que aconteceu durante a noite.'],
     lede:
@@ -105,7 +140,7 @@ const M = msgs(
     details: 'O que o navegador indicou:',
     ownTitle: 'Usar os seus ficheiros',
     ownText:
-      'Escolha duas versões da mesma folha de contingência e, se a tiver, a lista de doentes. São lidas neste navegador e nunca são enviadas; as comparações correm só neste computador. Mesmo sem IA local, o Lantern assinala linhas iguais, correções, possíveis repetições de dose e dúvidas de identificação. Cabe a quem faz a revisão decidir o que fica por esclarecer.',
+      'Escolha duas versões da mesma folha de contingência e, se a tiver, a lista de doentes. São lidas neste navegador e nunca são enviadas; as comparações correm só neste computador.',
     census: 'Lista de doentes (opcional)',
     earlier: 'Versão anterior',
     later: 'Versão posterior',
@@ -186,184 +221,250 @@ export default function Start() {
     void s.startImport({ census: c, earlier: e, later: l });
   };
 
-  // the drill's night, to scale: 21:00 to 09:00, with the record down from the first event to the last
-  const at = t.night.map((n) => nightMinutes(n.t)!);
-  const down = at[at.length - 1]! - at[0]!;
+  const go = (id: string) => () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const startDrill = () => {
+    setTried('drill');
+    void s.startDrill();
+  };
+  const hasAi = s.local === 'available';
 
   return (
-    <main className="mx-auto max-w-[1360px] px-4 pb-16 pt-5 sm:px-8 sm:pt-7">
-      <header className="flex items-center justify-between gap-4 text-night">
-        <span className="flex items-center gap-2">
-          <LanternMark size={30} />
-          <span className="text-[22px] font-extrabold tracking-[-0.01em]">Lantern</span>
-        </span>
-        <LangToggle />
-      </header>
-
-      <h1 className="mt-10 font-display text-[42px] font-bold leading-[1.04] tracking-[-0.015em] text-night sm:mt-14 sm:text-[54px] lg:text-[64px]">
-        <span className="block">{t.headline[0]}</span>
-        <span className="block max-w-[24ch]">{t.headline[1]}</span>
-      </h1>
-
-      <div className="mt-7 grid gap-x-16 gap-y-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-        <p className="max-w-[58ch] text-[19px] leading-[1.5] text-ink-soft sm:text-[21px]">{t.lede}</p>
-        <div className="lg:w-[28rem]">
-          <Button
-            size="lg"
-            onClick={() => {
-              setTried('drill');
-              void s.startDrill();
-            }}
-            disabled={!!s.busy}
-            className="w-full sm:w-auto lg:w-full lg:whitespace-nowrap"
-          >
-            {t.startDrill}
-          </Button>
-          <p className="mt-2.5 text-[15px] text-ink-soft">{t.drillNote}</p>
-          <p className="mt-2 text-[15px] leading-[1.45] text-ink-soft">{t.hides}</p>
-        </div>
+    <div className="relative isolate min-h-full overflow-x-clip">
+      <Backdrop variant="hero" />
+      {/* the picture bleeds to the top-right corner of the window, as on the mockup; below lg it sits under the text */}
+      <div className="pointer-events-none absolute right-0 top-0 hidden w-[56vw] max-w-[1040px] lg:block">
+        <HeroNight notes={t.heroNotes} chip={t.heroChip} />
       </div>
 
-      {s.resumable && (
-        <div className="mt-6 max-w-[70ch] border-l-4 border-night bg-sheet px-4 py-3 text-[16px]">
-          <p>
-            <strong className="font-semibold">{t.saved}</strong>{' '}
-            {t.savedWhat(
-              sessionTitle(s.resumable.kind).toLowerCase(),
-              new Date(s.resumable.createdAt).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
-              s.resumable.reviewer ?? '',
-            )}{' '}
-            {s.resumable.kind === 'import' && t.savedShared}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button tone="secondary" onClick={s.resume}>
-              {t.resume}
-            </Button>
-            <Button tone="quiet" onClick={() => void s.reset()}>
-              {t.remove}
-            </Button>
-          </div>
-        </div>
-      )}
-      {s.error && tried !== 'import' && (
-        <div className="mt-5 max-w-[70ch]" role="alert">
-          <Notice tone="pen">
-            {t.drillFailed}
-            <span className="mt-1 block text-[15px] text-ink-soft">
-              {t.details} {s.error}
-            </span>
-          </Notice>
-        </div>
-      )}
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-8 xl:px-9">
+        <header className="relative flex items-center gap-4 pt-5 sm:pt-6">
+          <Wordmark size="lg" />
+          <nav aria-label={t.navLabel} className="mx-auto hidden md:block">
+            <ul className="flex items-center gap-1 text-[15px] xl:gap-3">
+              <NavPill active onClick={go('top')}>{t.nav.overview}</NavPill>
+              <NavPill onClick={go('night')}>{t.nav.drill}</NavPill>
+              <NavPill onClick={go('routes')}>{t.nav.how}</NavPill>
+              <li>
+                <a className="block rounded-full px-4 py-1.5 text-ink hover:bg-well" href="https://github.com/JohnnyBazzinga/lantern/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">
+                  {t.nav.privacy}
+                </a>
+              </li>
+            </ul>
+          </nav>
+          <LangToggle className="ml-auto md:ml-0" />
+        </header>
 
-      <section aria-labelledby="night" className="mt-10 sm:mt-12">
-        <h2 id="night" className="text-[15px] text-ink-soft">
-          {t.nightTitle}
-        </h2>
-        <div className="mt-1 hidden md:block" aria-hidden>
-          <NightLine
-            from={nightMinutes('21:00')!}
-            to={nightMinutes('09:00')!}
-            down={[at[0]!, at[at.length - 1]!]}
-            marks={t.night.map((n, i) => ({ at: at[i]!, label: n.t }))}
-            inside={t.down(Math.floor(down / 60), down % 60)}
-            label={t.nightTitle}
-            animate
-          />
-        </div>
-        {/* on a phone the night runs down the page instead: a dark band at the left, a lamp at each event */}
-        <ol className="relative mt-4 border-l-[10px] border-night pl-5 md:mt-3 md:grid md:grid-cols-4 md:gap-x-8 md:border-l-0 md:pl-0">
-          {t.night.map((n) => (
-            <li key={n.t} className="relative mb-6 last:mb-0 md:mb-0">
-              <span className="absolute -left-[32px] top-[7px] h-[14px] w-[14px] rounded-full bg-lamp md:hidden" aria-hidden />
-              <time className="block text-[19px] font-extrabold tabular-nums text-night md:hidden">{n.t}</time>
-              <p className="text-[17px] font-semibold leading-snug text-night">
-                <span className="hidden tabular-nums md:inline">{n.t} </span>
-                {n.title}
-              </p>
-              <p className="mt-1 max-w-[42ch] text-[16px] leading-[1.45] text-ink-soft">{n.text}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
+        <section id="top" className="scroll-mt-4 lg:min-h-[calc(min(56vw,1040px)*480/900-84px)]">
+          <div className="pt-10 lg:max-w-[min(40vw,620px)] lg:pt-[3.2vw] min-[1700px]:pt-14">
+            <Kicker>{t.kicker}</Kicker>
+            <h1 className="mt-5 font-display text-[44px] font-medium leading-[1.02] tracking-[-0.025em] text-ink sm:text-[58px] lg:text-[clamp(46px,4.25vw,74px)]">
+              <span className="block">{t.head[0]}</span>
+              <span className="block">
+                {t.head[1]} <Marked>{t.head[2]}</Marked>
+              </span>
+            </h1>
+            <p className="mt-5 max-w-[56ch] text-[18px] leading-[1.5] text-ink lg:max-w-[min(36vw,570px)]">{t.lede}</p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Button size="lg" onClick={startDrill} disabled={!!s.busy} className="max-sm:w-full">
+                <Play size={17} fill="currentColor" strokeWidth={0} aria-hidden /> {t.startDrill}
+              </Button>
+              <Button size="lg" tone="secondary" onClick={go('routes')} className="max-sm:w-full">
+                <BookOpen size={19} strokeWidth={1.8} aria-hidden /> {t.seeHow}
+              </Button>
+            </div>
 
-      <div className="mt-12 grid gap-x-16 gap-y-12 border-t border-rule-strong pt-9 lg:grid-cols-2">
-        <section aria-labelledby="routes">
-          <h2 id="routes" className="text-[21px] font-extrabold tracking-[-0.01em] text-night">
-            {t.routes}
-          </h2>
-          <ul className="mt-4 space-y-4 text-[16px] leading-[1.45]">
-            <li className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[10.25rem_minmax(0,1fr)]">
-              <span>
-                <Route source="on_device" />
-              </span>
-              <div>
-                <Readiness local={s.local} preparing={preparing} onPrepare={prepare} />
-                {prepError && <p className="mt-2 text-pen">{prepError}</p>}
-              </div>
-            </li>
-            <li className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[10.25rem_minmax(0,1fr)]">
-              <span>
-                <Route source="in_cloud" />
-              </span>
-              <p>{t.routeCloud}</p>
-            </li>
-            <li className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[10.25rem_minmax(0,1fr)]">
-              <span>
-                <Route source="rule" />
-              </span>
-              <p>{t.routeRule}</p>
-            </li>
-          </ul>
-        </section>
-
-        <section aria-labelledby="own">
-          <h2 id="own" className="text-[21px] font-extrabold tracking-[-0.01em] text-night">
-            {t.ownTitle}
-          </h2>
-          <p className="mt-4 max-w-[62ch] text-[16px] leading-[1.45] text-ink-soft">{t.ownText}</p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <FilePick label={t.census} hint={t.fileTypes} inputRef={census} picked={picked.census} onPick={(n) => setPicked((p) => ({ ...p, census: n }))} />
-            <FilePick label={t.earlier} hint={t.fileTypes} inputRef={earlier} picked={picked.earlier} onPick={(n) => setPicked((p) => ({ ...p, earlier: n }))} />
-            <FilePick label={t.later} hint={t.fileTypes} inputRef={later} picked={picked.later} onPick={(n) => setPicked((p) => ({ ...p, later: n }))} />
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <Button tone="secondary" disabled={!picked.earlier || !picked.later || !!s.busy} onClick={importFiles}>
-              {t.open}
-            </Button>
-            {/* a disabled button says why */}
-            {(!picked.earlier || !picked.later) && <span className="text-[15px] text-ink-soft">{t.pickFirst}</span>}
-          </div>
-          {(wrongType || (s.error && tried === 'import')) && (
-            <div className="mt-4" role="alert">
-              <Notice tone="pen">
-                {wrongType ? t.wrongType(wrongType) : t.importFailed}
-                {!wrongType && (
+            {s.resumable && (
+              <Notice tone="ok" className="mt-6 max-w-[64ch]">
+                <p>
+                  <strong className="font-semibold">{t.saved}</strong>{' '}
+                  {t.savedWhat(
+                    sessionTitle(s.resumable.kind).toLowerCase(),
+                    new Date(s.resumable.createdAt).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
+                    s.resumable.reviewer ?? '',
+                  )}{' '}
+                  {s.resumable.kind === 'import' && t.savedShared}
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <Button tone="secondary" onClick={s.resume}>
+                    {t.resume}
+                  </Button>
+                  <Button tone="quiet" onClick={() => void s.reset()}>
+                    {t.remove}
+                  </Button>
+                </div>
+              </Notice>
+            )}
+            {s.error && tried !== 'import' && (
+              <div className="mt-5 max-w-[64ch]" role="alert">
+                <Notice tone="alarm">
+                  <strong className="font-semibold">{t.drillFailed}</strong>
                   <span className="mt-1 block text-[15px] text-ink-soft">
                     {t.details} {s.error}
                   </span>
-                )}
-              </Notice>
-            </div>
-          )}
+                </Notice>
+              </div>
+            )}
+          </div>
         </section>
-      </div>
+        <div className="mt-8 lg:hidden">
+          <HeroNight notes={t.heroNotes} chip={t.heroChip} />
+        </div>
 
-      <footer className="mt-14 max-w-[84ch] text-[15px] text-ink-faint">
-        {t.footer}{' '}
-        <span className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-          <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/JohnnyBazzinga/lantern/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">
-            {t.privacy}
-          </a>
-          <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/JohnnyBazzinga/lantern" target="_blank" rel="noreferrer">
-            {t.source}
-          </a>
-          <a className="underline underline-offset-2 hover:text-ink" href="#/lab">
-            {t.lab}
-          </a>
-        </span>
-      </footer>
-    </main>
+        <Card as="section" id="night" aria-labelledby="night-title" className="mt-8 scroll-mt-6 px-5 pb-6 pt-6 sm:px-10 sm:pt-7 xl:-mx-[30px]">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+            <h2 id="night-title" className="font-display text-[28px] font-semibold leading-tight tracking-[-0.01em] sm:text-[32px]">
+              {t.nightTitle}
+            </h2>
+            <div className="flex flex-wrap gap-2 text-[14.5px]">
+              <span className="inline-flex items-center gap-2 rounded-full border border-rule-strong px-3.5 py-1.5">
+                <Clock size={16} strokeWidth={1.8} aria-hidden /> {t.minutes}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-rule-strong px-3.5 py-1.5">
+                <Users size={16} strokeWidth={1.8} aria-hidden /> {t.fictional}
+              </span>
+            </div>
+          </div>
+          <ol className="relative mt-7 grid gap-y-6 md:mt-8 md:grid-cols-4 md:gap-x-8">
+            {t.night.map((n, i) => {
+              const last = i === t.night.length - 1;
+              return (
+                <li key={n.t} className="relative pl-9 md:pl-0">
+                  <time className="block text-[18px] font-semibold tabular-nums text-ink md:pl-[3px]">{n.t}</time>
+                  {/* the line between this event and the next, through the dots */}
+                  {!last && <span className="absolute left-[11px] top-[14px] h-[calc(100%+24px)] w-[2px] bg-forest md:left-[12px] md:right-[-44px] md:top-[45px] md:h-[2px] md:w-auto" aria-hidden />}
+                  {/* every dot sits in the same 24px slot, so the titles under them line up */}
+                  <span className="absolute left-0 top-[1px] grid h-6 w-6 place-items-center md:static md:mt-1.5" aria-hidden>
+                    <span
+                      className={`grid place-items-center rounded-full ${
+                        last ? 'h-6 w-6 bg-forest text-white' : i === 0 ? 'h-[18px] w-[18px] border-2 border-forest bg-card' : 'h-[14px] w-[14px] bg-forest'
+                      }`}
+                    >
+                      {last && <Check size={14} strokeWidth={3} />}
+                    </span>
+                  </span>
+                  <p className="mt-1 text-[17px] font-semibold leading-snug text-ink md:mt-3">{n.title}</p>
+                  <p className="mt-1 max-w-[40ch] text-[15px] leading-[1.45] text-ink-soft">{n.text}</p>
+                </li>
+              );
+            })}
+          </ol>
+          <p className="mt-7 flex items-start gap-3 border-t border-rule pt-4 text-[15px] leading-[1.45] text-ink-soft">
+            <ScanSearch size={19} strokeWidth={1.8} className="mt-0.5 shrink-0 text-moss" aria-hidden />
+            {t.hides}
+          </p>
+        </Card>
+
+        <div className="mt-8 grid gap-x-10 gap-y-10 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_1px_minmax(0,1fr)] xl:-ml-[30px]">
+          <WardSign text={t.wardSign} />
+          <section id="routes" aria-labelledby="routes-title" className="scroll-mt-6">
+            <h2 id="routes-title" className="font-display text-[28px] font-semibold leading-tight tracking-[-0.01em] sm:text-[32px]">
+              {t.routes}
+            </h2>
+            <div className="mt-4 flex flex-wrap gap-2 text-[14.5px] font-semibold">
+              <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 ${hasAi ? 'bg-mint text-forest' : 'text-ink-soft'}`}>
+                <Laptop size={17} strokeWidth={1.9} aria-hidden /> {t.stateDevice}
+                {hasAi && <span className="sr-only">✓</span>}
+              </span>
+              <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 ${!hasAi && s.local !== 'checking' ? 'bg-stone text-ink' : 'text-ink-soft'}`}>
+                <CloudOff size={17} strokeWidth={1.9} aria-hidden /> {t.stateNone}
+              </span>
+            </div>
+            <div className="mt-4 text-[16px] leading-[1.5]">
+              <Readiness local={s.local} preparing={preparing} onPrepare={prepare} />
+              {prepError && (
+                <p role="alert" className="mt-2 text-alarm">
+                  {prepError}
+                </p>
+              )}
+            </div>
+            <ul className="mt-4 space-y-2.5 text-[15px] leading-[1.45] text-ink-soft">
+              <li className="flex items-start gap-3">
+                <Cloud size={18} strokeWidth={1.8} className="mt-0.5 shrink-0 text-ink" aria-hidden />
+                {t.routeCloud}
+              </li>
+              <li className="flex items-start gap-3">
+                <Scale size={18} strokeWidth={1.8} className="mt-0.5 shrink-0 text-ink" aria-hidden />
+                {t.routeRule}
+              </li>
+            </ul>
+          </section>
+          <span className="hidden bg-rule-strong lg:block" aria-hidden />
+          <section aria-labelledby="own" className="min-w-0">
+            <h2 id="own" className="font-display text-[28px] font-semibold leading-tight tracking-[-0.01em] sm:text-[32px]">
+              {t.ownTitle}
+            </h2>
+            <p className="mt-3 max-w-[62ch] text-[16px] leading-[1.5] text-ink">{t.ownText}</p>
+            <div className="mt-5 grid grid-cols-3 gap-3 max-[460px]:grid-cols-1">
+              <FilePick icon={<FileText size={22} strokeWidth={1.6} />} label={t.census} hint={t.fileTypes} inputRef={census} picked={picked.census} onPick={(n) => setPicked((p) => ({ ...p, census: n }))} />
+              <FilePick icon={<Upload size={22} strokeWidth={1.6} />} label={t.earlier} hint={t.fileTypes} inputRef={earlier} picked={picked.earlier} onPick={(n) => setPicked((p) => ({ ...p, earlier: n }))} />
+              <FilePick icon={<Upload size={22} strokeWidth={1.6} />} label={t.later} hint={t.fileTypes} inputRef={later} picked={picked.later} onPick={(n) => setPicked((p) => ({ ...p, later: n }))} />
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <Button tone={picked.earlier && picked.later ? 'primary' : 'secondary'} disabled={!picked.earlier || !picked.later || !!s.busy} onClick={importFiles}>
+                {t.open} <ArrowRight size={17} aria-hidden />
+              </Button>
+              {/* a disabled button says why */}
+              {(!picked.earlier || !picked.later) && <span className="text-[14.5px] text-ink-soft">{t.pickFirst}</span>}
+            </div>
+            {(wrongType || (s.error && tried === 'import')) && (
+              <div className="mt-4" role="alert">
+                <Notice tone="alarm">
+                  <strong className="font-semibold">{wrongType ? t.wrongType(wrongType) : t.importFailed}</strong>
+                  {!wrongType && (
+                    <span className="mt-1 block text-[15px] text-ink-soft">
+                      {t.details} {s.error}
+                    </span>
+                  )}
+                </Notice>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <footer className="mt-16 border-t border-rule pb-12 pt-6 text-[14.5px] leading-[1.5] text-ink-soft">
+          <p className="max-w-[96ch]">{t.footer}</p>
+          <span className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+            <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/JohnnyBazzinga/lantern/blob/main/docs/PRIVACY.md" target="_blank" rel="noreferrer">
+              {t.privacy}
+            </a>
+            <a className="underline underline-offset-2 hover:text-ink" href="https://github.com/JohnnyBazzinga/lantern" target="_blank" rel="noreferrer">
+              {t.source}
+            </a>
+            <a className="underline underline-offset-2 hover:text-ink" href="#/lab">
+              {t.lab}
+            </a>
+          </span>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function NavPill({ active = false, onClick, children }: { active?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <li>
+      <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined} className={`block rounded-full px-4 py-1.5 ${active ? 'bg-[#d6d9d1] font-medium text-ink' : 'text-ink hover:bg-well'}`}>
+        {children}
+      </button>
+    </li>
+  );
+}
+
+/**
+ * The corridor sign of the fictional ward, drawn: the mockup's photograph until a real one is chosen.
+ * Decoration only.
+ */
+function WardSign({ text }: { text: string }) {
+  return (
+    <div aria-hidden className="relative hidden h-full min-h-[230px] overflow-hidden rounded-2xl bg-[linear-gradient(160deg,#20403a_0%,#122a26_55%,#0b1d1a_100%)] lg:block">
+      <div className="absolute -right-10 -top-16 h-48 w-48 rounded-full bg-[#e9f3e9]/25 blur-3xl" />
+      <div className="absolute bottom-0 left-[18%] h-[46%] w-[34%] rounded-t-md bg-[#2b4a43]/70" />
+      <div className="absolute bottom-0 left-[60%] h-[40%] w-[16%] rounded-t-sm bg-[#d9e6dd]/15" />
+      <div className="absolute left-[16%] top-[13%] flex origin-left -rotate-[7deg] skew-y-[4deg] items-center gap-4 rounded-md bg-[#0e1f1c] px-5 py-3 font-display text-[34px] font-medium text-[#eef3ef] shadow-[0_18px_30px_-12px_rgba(0,0,0,0.8)] ring-1 ring-white/10">
+        {text}
+        <ArrowRight size={30} strokeWidth={2} />
+      </div>
+    </div>
   );
 }
 
@@ -393,12 +494,14 @@ function Readiness({ local, preparing, onPrepare }: { local: ReturnType<typeof u
 }
 
 function FilePick({
+  icon,
   label,
   hint,
   inputRef,
   picked,
   onPick,
 }: {
+  icon: ReactNode;
   label: string;
   hint: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -406,16 +509,17 @@ function FilePick({
   onPick: (n: string) => void;
 }) {
   return (
-    <label className="flex cursor-pointer flex-col gap-0.5 rounded-md border border-dashed border-rule-strong bg-sheet px-4 py-3 hover:border-night focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-ballpoint">
-      <span className="text-[16px] font-semibold">{label}</span>
-      <span className={`truncate text-[15px] ${picked ? 'font-mono text-ink' : 'text-ink-faint'}`}>{picked || hint}</span>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        className="sr-only"
-        onChange={(e) => onPick(e.target.files?.[0]?.name ?? '')}
-      />
+    <label
+      className={`flex min-h-[112px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-4 text-center transition-colors focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-forest ${
+        picked ? 'border-mint-line bg-mint' : 'border-rule-strong bg-card/60 hover:border-forest hover:bg-mint/60'
+      }`}
+    >
+      <span className={picked ? 'text-forest' : 'text-ink'} aria-hidden>
+        {picked ? <Check size={22} strokeWidth={2.2} /> : icon}
+      </span>
+      <span className="text-[15.5px] font-semibold leading-tight">{label}</span>
+      <span className={`max-w-full truncate text-[13.5px] ${picked ? 'font-mono text-ink' : 'text-ink-soft'}`}>{picked || hint}</span>
+      <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="sr-only" onChange={(e) => onPick(e.target.files?.[0]?.name ?? '')} />
     </label>
   );
 }

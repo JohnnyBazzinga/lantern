@@ -74,9 +74,9 @@ export function NightLine({
           </span>
         ))}
       </div>
-      <div className="relative h-10 rounded-[3px] bg-gutter">
+      <div className="relative h-10 rounded-[3px] bg-well">
         <div
-          className={`absolute inset-y-0 flex items-center overflow-hidden rounded-[3px] bg-night ${animate ? 'animate-night-draw' : ''}`}
+          className={`absolute inset-y-0 flex items-center overflow-hidden rounded-[3px] bg-forest ${animate ? 'animate-night-draw' : ''}`}
           style={{ left: pos(d0), width: `${(100 * (d1 - d0)) / span}%` }}
         >
           {inside && <span className="truncate pl-10 pr-4 text-[14px] text-white/80">{inside}</span>}
@@ -98,7 +98,7 @@ export function NightLine({
           <span key={i} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: pos(m.at) }} title={m.title}>
             <span
               className={`grid place-items-center rounded-full text-[13px] font-extrabold leading-none ${animate ? 'animate-lamp-on' : ''} ${
-                m.unsure ? 'border-2 border-dashed border-lamp bg-night text-lamp' : 'bg-lamp text-night'
+                m.unsure ? 'border-2 border-dashed border-lamp bg-forest text-lamp' : 'bg-lamp text-ink'
               } ${m.count && m.count > 1 ? 'h-6 w-6' : m.unsure ? 'h-6 w-6' : 'h-4 w-4'} ${m.focus ? 'outline outline-2 outline-offset-[3px] outline-white' : ''}`}
               style={{ animationDelay: animate ? `${650 + i * 120}ms` : undefined, boxShadow: m.unsure ? undefined : '0 0 0 4px rgb(245 184 74 / 0.28)' }}
             >

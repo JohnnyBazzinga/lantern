@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, ChevronDown, ChevronRight, Cloud, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight, Cloud, Copy, CopyCheck, FileMinus, FilePlus, History, MessageCircle, Sparkles, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
 import { subscribeLedger, type LedgerEntry } from '../ai/ledger';
 import { groupCopy, isDecided, suggested, type ReviewItem } from '../app/review';
 import { sessionTitle, useSession } from '../app/session';
@@ -12,7 +12,8 @@ import { errorProneAbbreviations } from '../core/text';
 import { AnswerBox } from '../ui/AnswerBox';
 import type { SessionData } from '../app/store';
 import type { Act, Disposition, IdentityIssue, Judgment, MatchCandidate, Relation } from '../core/types';
-import { AppBar, Button, Meter, Route, StateGlyph, Steps, usePageTitle } from '../ui/kit';
+import { Backdrop } from '../ui/Backdrop';
+import { Alarm, AppBar, Button, Card, Caution, Eyebrow, Meter, Notice, Route, StateGlyph, Steps, Tick, usePageTitle } from '../ui/kit';
 import { GAP_FITS, NightLine, type NightGap, type NightMark } from '../ui/NightLine';
 import { actRow, censusRow, PatientLine, Stack, useNoTime, type StackRow } from '../ui/Slip';
 import { Tally } from '../ui/Tally';
@@ -48,7 +49,7 @@ const M = msgs(
     countedFrom: 'Counted from the requests this page made',
     sentNone: (
       <>
-        Patient data sent anywhere: <strong className="text-scrub">none</strong>
+        Patient data sent anywhere: <strong className="text-forest">none</strong>
       </>
     ),
     cloudOnly: (n: number) => `No on-device model on this PC: the drill's AI ran in the cloud on ${n} fictional rows`,
@@ -179,7 +180,7 @@ const M = msgs(
     countedFrom: 'Contado a partir dos pedidos que esta página fez',
     sentNone: (
       <>
-        Dados de doentes enviados para fora: <strong className="text-scrub">nenhum</strong>
+        Dados de doentes enviados para fora: <strong className="text-forest">nenhum</strong>
       </>
     ),
     cloudOnly: (n) => `Sem modelo local neste computador: a IA do simulacro correu na nuvem, sobre ${n} linhas fictícias`,
@@ -215,7 +216,7 @@ const M = msgs(
     reads: 'lê estas linhas como',
     because: (e) => `, por causa de “${e}”`,
     overrides: (rule) => `As regras do Lantern prevalecem: ${rule}.`,
-    why: 'A leitura do Lantern',
+    why: 'Leitura do Lantern',
     identical: 'Texto, hora e doente iguais nos dois ficheiros.',
     rulesOnly: (rule) => `Nenhuma IA avaliou este par. Regras do Lantern: ${rule}.`,
     relayed: (by, x) => `${by || 'Alguém'} escreveu esta correção por indicação de ${x}. ${x} tem de a confirmar: altera um registo de ${x}.`,
@@ -348,17 +349,18 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
   }, [active?.id]);
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="relative isolate flex min-h-full flex-col">
+      <Backdrop variant="work" />
       <AppBar title={sessionTitle(session.kind)} steps={<Steps current="review" onGo={{ worklist: onWorklist }} />}>
         <Tally kind={session.kind} />
       </AppBar>
-      <div className="mx-auto grid w-full max-w-[1720px] flex-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
-        <div>
+      <div className="mx-auto grid w-full max-w-[1720px] flex-1 items-start gap-4 px-3 pb-10 pt-2 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-5 xl:grid-cols-[350px_minmax(0,1fr)] xl:gap-6 xl:px-10">
+        <Card className="lg:sticky lg:top-[76px] lg:max-h-[calc(100vh-92px)] lg:overflow-hidden">
           <button
             type="button"
             aria-expanded={queueOpen}
             onClick={() => setQueueOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 border-b border-rule px-4 py-3 text-left text-[16px] font-semibold sm:px-6 lg:hidden"
+            className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-[16px] font-semibold lg:hidden"
           >
             <span>{t.queueSummary(doneItems, items.length, waitingItems.length)}</span>
             <ChevronDown size={20} className={`shrink-0 transition-transform ${queueOpen ? 'rotate-180' : ''}`} aria-hidden />
@@ -374,51 +376,67 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
               setQueueOpen(false);
             }}
           />
-        </div>
-        <main ref={pane} className="@container flex min-w-0 scroll-mt-[60px] flex-col border-rule bg-sheet lg:border-l">
+        </Card>
+        <main ref={pane} className="@container flex min-w-0 scroll-mt-[80px] flex-col gap-4">
           {undecided.length === 0 && items.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-gutter px-4 py-3 sm:px-8">
-              <p className="font-semibold">
-                <Check size={20} strokeWidth={2.5} className="mr-2 inline align-[-4px]" aria-hidden />
-                {t.allDecided}
-                {waitingRows.size > 0 && <span className="font-normal text-pen"> {t.allDecidedWaiting(waitingRows.size)}</span>}
+            <Notice tone="ok" className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+              <p className="flex items-center gap-2.5 font-semibold">
+                <Tick size={22} />
+                <span>
+                  {t.allDecided}
+                  {waitingRows.size > 0 && <span className="font-normal text-amber-ink"> {t.allDecidedWaiting(waitingRows.size)}</span>}
+                </span>
               </p>
               <Button onClick={onWorklist}>{t.openWorklist}</Button>
+            </Notice>
+          )}
+          {/* own files on a PC with no on-device model: say once that the suggestions are the rules' alone */}
+          {s.decidedCount === 0 && session.kind === 'import' && !session.candidates.some((c) => c.local) && items.length > 0 && <Notice tone="info">{t.rulesAlone.trim()}</Notice>}
+          {session.kind === 'drill' && s.escalated.size > 0 && !session.cloudAsked && <CloudOffer />}
+          {/* asked, and not one answer came back: say what happened and what to do */}
+          {session.cloudAsked && !session.candidates.some((c) => c.cloud) && undecided.length > 0 && (
+            <div role="status">
+              <Notice tone="info" className="flex items-start gap-3 px-5">
+                <Cloud size={22} strokeWidth={1.8} className="mt-0.5 shrink-0 text-forest" aria-hidden />
+                <span>
+                  {t.cloudFailed}{' '}
+                  <button
+                    type="button"
+                    className="ml-1 font-semibold text-forest underline underline-offset-2 disabled:text-ink-faint disabled:no-underline"
+                    disabled={!!s.busy}
+                    onClick={() => void s.askCloud()}
+                  >
+                    {t.tryAgain}
+                  </button>
+                </span>
+              </Notice>
             </div>
           )}
-          {/* on arrival, one line says what just happened and what to do; it goes with the first decision */}
-          {s.decidedCount === 0 && waitingItems.length === 0 && items.length > 0 && (
-            <p className="border-b border-rule bg-gutter px-4 py-2.5 text-[16px] leading-snug sm:px-8">
-              {t.arrival(session.acts.length, items.length, items.filter((i) => i.group === 'copies').length)}
-              {session.kind === 'import' && !session.candidates.some((c) => c.local) && t.rulesAlone}
-            </p>
-          )}
-          {session.kind === 'drill' && s.escalated.size > 0 && !session.cloudAsked && <CloudOffer />}
-          {/* asked, and not one answer came back: say what happened and what to do, in the cloud's colour */}
-          {session.cloudAsked && !session.candidates.some((c) => c.cloud) && undecided.length > 0 && (
-            <p role="status" className="border-b border-ballpoint/25 bg-ballpoint-wash px-4 py-2.5 text-[16px] leading-snug sm:px-8">
-              <Route source="in_cloud" /> <span className="ml-1">{t.cloudFailed}</span>{' '}
-              <button
-                type="button"
-                className="ml-1 font-semibold text-ballpoint underline underline-offset-2 disabled:text-ink-faint disabled:no-underline"
-                disabled={!!s.busy}
-                onClick={() => void s.askCloud()}
-              >
-                {t.tryAgain}
-              </button>
-            </p>
-          )}
           {s.error && (
-            <p role="alert" className="border-b border-pen/40 bg-pen-wash px-4 py-2.5 text-[16px] leading-snug sm:px-8">
-              {s.error}
-            </p>
+            <div role="alert">
+              <Notice tone="alarm" className="flex items-start gap-3 px-5">
+                <Alarm size={22} className="mt-0.5" />
+                <span>{s.error}</span>
+              </Notice>
+            </div>
           )}
-          {active ? <ItemView key={active.id} item={active} onDone={() => next(active)} /> : <p className="px-4 py-6 sm:px-8">{t.nothing}</p>}
+          {active ? <ItemView key={active.id} item={active} onDone={() => next(active)} /> : <Card className="px-8 py-6">{t.nothing}</Card>}
         </main>
       </div>
     </div>
   );
 }
+
+/** The icon each group of the queue carries, as on the mockup. */
+const GROUP_ICON: Record<ReviewGroup, LucideIcon> = {
+  identity: Users,
+  open: MessageCircle,
+  changed: History,
+  'likely-same': Copy,
+  'only-earlier': FileMinus,
+  'only-later': FilePlus,
+  copies: CopyCheck,
+};
 
 function Queue({
   items,
@@ -446,29 +464,33 @@ function Queue({
   return (
     <nav
       aria-label={t.queue}
-      className={`${open ? 'block' : 'hidden'} border-b border-rule px-3 py-5 sm:px-5 lg:sticky lg:top-[60px] lg:block lg:h-[calc(100vh-60px)] lg:overflow-y-auto lg:border-b-0 lg:px-4`}
+      className={`${open ? 'block' : 'hidden'} border-t border-rule px-3 pb-4 pt-5 lg:block lg:max-h-[calc(100vh-92px)] lg:overflow-y-auto lg:border-t-0 lg:px-4 lg:pt-6`}
     >
-      <div className="mb-5 px-2">
+      <div className="mb-6 px-2">
         <Meter done={decidedRows} total={session.acts.length} waiting={waitingRows} />
-        <p className="mt-2 hidden text-[14px] text-ink-faint lg:block">{t.queueHint}</p>
+        <p className="mt-2.5 hidden text-[13.5px] text-ink-soft lg:block">{t.queueHint}</p>
       </div>
       {groups.map(({ g, list }) => {
         const done = list.filter((i) => stateOf(i, session) === 'done').length;
         const waiting = list.filter((i) => stateOf(i, session) === 'waiting').length;
         const left = list.filter((i) => !isDecided(i, session.decisions)).length;
         return (
-          <section key={g} className="mb-5">
-            <div className="mb-1 flex flex-wrap items-baseline gap-x-3 px-2">
-              <h2 className="text-[16px] font-semibold">{groupCopy(g).title}</h2>
-              <span className="ml-auto flex items-baseline gap-x-3 whitespace-nowrap text-[14px] tabular-nums">
-                {waiting > 0 && <span className="text-pen">{t.nWaiting(waiting)}</span>}
-                <span className="text-ink-soft">
+          <section key={g} className="mb-6">
+            <div className="mb-1.5 flex flex-wrap items-center gap-x-2.5 px-2">
+              {(() => {
+                const Icon = GROUP_ICON[g];
+                return <Icon size={18} strokeWidth={1.9} className="shrink-0 text-forest" aria-hidden />;
+              })()}
+              <h2 className="font-display text-[18px] font-semibold leading-tight">{groupCopy(g).title}</h2>
+              <span className="ml-auto flex items-baseline gap-x-3 whitespace-nowrap text-[13.5px] tabular-nums">
+                {waiting > 0 && <span className="text-amber-ink">{t.nWaiting(waiting)}</span>}
+                <span className="font-mono text-ink-soft">
                   {done}/{list.length}
                 </span>
               </span>
             </div>
             {g === 'copies' && left > 0 && (
-              <button className="mb-1 px-2 text-left text-[15px] text-ballpoint underline underline-offset-2" onClick={() => s.acceptGroup('copies')}>
+              <button className="mb-1.5 px-2 text-left text-[15px] font-semibold text-forest underline underline-offset-2" onClick={() => s.acceptGroup('copies')}>
                 {t.keepCopies(left)}
               </button>
             )}
@@ -484,17 +506,17 @@ function Queue({
                       onClick={() => onPick(i.id)}
                       aria-current={isActive}
                       data-state={state}
-                      className={`grid w-full grid-cols-[20px_minmax(0,1fr)] items-start gap-2.5 rounded-[4px] px-2 py-1.5 text-left ${
-                        isActive ? 'bg-sheet shadow-[inset_4px_0_0_var(--color-night)]' : 'hover:bg-sheet/70'
+                      className={`relative grid w-full grid-cols-[20px_minmax(0,1fr)] items-start gap-3 rounded-lg px-3 py-2 text-left ${
+                        isActive ? 'bg-mint before:absolute before:inset-y-0 before:-left-1 before:w-[3px] before:rounded-full before:bg-forest' : 'hover:bg-well/60'
                       }`}
                     >
-                      <span className="mt-[3px]">
+                      <span className="mt-[2px]">
                         <StateGlyph state={state} label={t.status[state]} />
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate text-[16px] font-semibold leading-snug">{act.patientName || t.bed(act.bed)}</span>
-                        <span className="block truncate text-[14px] text-ink-soft">
-                          <span className="tabular-nums">{act.eventTime || t.noTime}</span> {act.actText}
+                        <span className="block truncate text-[15px] font-semibold leading-snug">{act.patientName || t.bed(act.bed)}</span>
+                        <span className="block truncate text-[13.5px] leading-snug text-ink-soft">
+                          <span className="font-mono text-[13px] tabular-nums">{act.eventTime || t.noTime}</span> {act.actText}
                         </span>
                       </span>
                     </button>
@@ -555,15 +577,17 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
   ];
 
   return (
-    <article aria-labelledby="item-title">
-      <div className="px-4 pb-7 pt-5 sm:px-8 sm:pt-6">
-        <p className="text-[16px] text-ink-soft">
-          <span className="font-semibold text-ink">{copy.title}.</span> {copy.hint}.
+    <Card as="article" aria-labelledby="item-title">
+      <div className="px-5 pb-7 pt-6 sm:px-8 sm:pt-7">
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[15px] text-ink-soft">
+          <Eyebrow>{copy.title}</Eyebrow>
+          <span className="hidden h-5 w-px bg-rule-strong sm:block" aria-hidden />
+          <span>{copy.hint}.</span>
         </p>
-        <div id="item-title" className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <div id="item-title" className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2">
           <PatientLine act={a} override={override} />
           {highAlert && (
-            <span className="inline-flex items-center gap-1.5 rounded-[4px] border border-ink px-2 py-0.5 text-[15px] font-semibold">
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-line bg-amber-wash px-2.5 py-1 text-[14px] font-semibold text-amber-ink">
               <TriangleAlert size={16} aria-hidden /> {t.highAlert}
             </span>
           )}
@@ -573,7 +597,7 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
           <IdentityBox key={issue.id} issue={issue} act={a} />
         ))}
 
-        <div className="mt-5">
+        <div className="mt-7">
           <Stack rows={rows} />
         </div>
 
@@ -582,17 +606,19 @@ function ItemView({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
       </div>
 
       {/* directly under a short item; pinned to the bottom of the window only when the item is taller than it */}
-      <div className="border-y border-rule-strong bg-sheet px-4 py-4 sm:px-8 lg:sticky lg:bottom-0">
+      <div className="rounded-b-2xl border-t border-rule bg-card px-5 py-5 sm:px-8 lg:sticky lg:bottom-0 lg:shadow-[0_-10px_18px_-16px_rgba(30,40,30,0.25)]">
         {decided && <CurrentDecision item={item} />}
         {identityOpen.length > 0 ? (
-          <p className="font-semibold text-pen">{t.identityFirst}</p>
+          <p className="flex items-center gap-2.5 text-[17px] font-semibold text-alarm">
+            <Alarm size={22} /> {t.identityFirst}
+          </p>
         ) : identityAsked.length > 0 ? (
-          <p className="max-w-[76ch] text-pen">{t.waitingRows(ownerOf(b ?? a))}</p>
+          <p className="max-w-[76ch] text-amber-ink">{t.waitingRows(ownerOf(b ?? a))}</p>
         ) : (
           <Actions item={item} a={a} b={b} decided={decided} onDecide={decide} />
         )}
       </div>
-    </article>
+    </Card>
   );
 }
 
@@ -618,8 +644,8 @@ function SameDrugStrip({ focus }: { focus: Act[] }) {
   if (!strips.length) return null;
   const inFocus = new Set(focus.map((x) => x.id));
   const note = (name: string) => (
-    <p className="mt-3 flex max-w-[76ch] items-start gap-2 text-[16px] font-semibold">
-      <TriangleAlert size={18} className="mt-[3px] shrink-0" aria-hidden /> {t.controlled(name)}
+    <p className="mt-4 flex max-w-[76ch] items-start gap-2.5 text-[16px] font-semibold">
+      <Caution size={20} className="mt-[2px]" /> {t.controlled(name)}
     </p>
   );
   return (
@@ -651,7 +677,7 @@ function SameDrugStrip({ focus }: { focus: Act[] }) {
         });
         return (
           <section key={key} aria-label={t.strip(capital(name))} className="mt-7">
-            <h3 className="text-[17px] font-semibold">{t.strip(capital(name))}</h3>
+            <h3 className="font-display text-[21px] font-semibold leading-snug">{t.strip(capital(name))}</h3>
             {marks.length > 0 && (
               <div className="mt-2">
                 <NightLine from={range.from} to={range.to} marks={marks} gaps={gaps} label={[t.nightLine(name), ...gaps.map((g) => g.sentence)].join('. ')} />
@@ -667,7 +693,7 @@ function SameDrugStrip({ focus }: { focus: Act[] }) {
               </ul>
             )}
             {untimed > 0 && <p className="mt-1 text-[15px] text-ink-soft">{t.untimed(untimed)}</p>}
-            <div className="mt-3 overflow-x-auto border border-rule-strong bg-sheet">
+            <div className="mt-3 overflow-x-auto rounded-xl border border-rule bg-card">
               <table className="w-full min-w-[600px] border-collapse text-left text-[16px]">
                 <tbody>
                   {rows.map(({ act, sure }) => {
@@ -675,8 +701,8 @@ function SameDrugStrip({ focus }: { focus: Act[] }) {
                     const status = doseStatus(d);
                     const mine = inFocus.has(act.id);
                     return (
-                      <tr key={act.id} className={`border-b border-rule last:border-b-0 ${mine ? 'shadow-[inset_4px_0_0_var(--color-night)]' : ''}`}>
-                        <th scope="row" className="w-[10.5rem] border-r border-rule-strong bg-gutter px-3 py-2 align-top text-[14px] font-normal text-ink-soft">
+                      <tr key={act.id} className={`border-b border-rule last:border-b-0 ${mine ? 'bg-mint/50 shadow-[inset_3px_0_0_var(--color-forest)]' : ''}`}>
+                        <th scope="row" className="w-[10.5rem] border-r border-rule bg-well px-4 py-2.5 align-top text-[14px] font-normal text-ink-soft">
                           {rowRef(act)}
                           {mine && <span className="block font-semibold text-ink">{t.inThis}</span>}
                         </th>
@@ -686,9 +712,9 @@ function SameDrugStrip({ focus }: { focus: Act[] }) {
                         <td className="border-l border-rule px-3 py-2 align-top">
                           <span className="font-mono">{act.actText}</span>
                           {act.notes && <span className="block font-mono text-[15px] text-ink-soft">{act.notes}</span>}
-                          {!sure && <span className="block text-[15px] text-pen">{t.maybe(name)}</span>}
+                          {!sure && <span className="block text-[15px] text-amber-ink">{t.maybe(name)}</span>}
                         </td>
-                        <td className={`w-[11rem] border-l border-rule px-3 py-2 align-top text-[15px] ${status === 'open' ? 'text-ink-faint' : status === 'waiting' ? 'text-pen' : status === 'listed' ? 'font-semibold text-ink' : 'text-ink-soft'}`}>
+                        <td className={`w-[11rem] border-l border-rule px-3 py-2 align-top text-[15px] ${status === 'open' ? 'text-ink-faint' : status === 'waiting' ? 'text-amber-ink' : status === 'listed' ? 'font-semibold text-ink' : 'text-ink-soft'}`}>
                           {d?.kind === 'unresolved' ? t.waiting(d.owner) : t.dose[status]}
                         </td>
                       </tr>
@@ -712,7 +738,7 @@ function IdentityBox({ issue, act }: { issue: IdentityIssue; act: Act }) {
   const choice = s.session!.identityDecisions[issue.id];
   const title = t.identityTitle[issue.kind];
   const settle = (
-    <div className="mt-3 flex flex-wrap gap-2">
+    <div className="mt-4 flex flex-wrap gap-3">
       {issue.suggestion && (
         <Button onClick={() => s.decideIdentity(issue.id, 'census')}>
           {t.useCensus(issue.suggestion.patientName, issue.suggestion.patientId)}
@@ -725,7 +751,7 @@ function IdentityBox({ issue, act }: { issue: IdentityIssue; act: Act }) {
         </Button>
       )}
       {choice !== 'ask' && (
-        <Button tone="pen" onClick={() => s.decideIdentity(issue.id, 'ask')}>
+        <Button tone="ask" onClick={() => s.decideIdentity(issue.id, 'ask')}>
           {t.ask(ownerOf(act))}
         </Button>
       )}
@@ -734,18 +760,18 @@ function IdentityBox({ issue, act }: { issue: IdentityIssue; act: Act }) {
   const settled = choice === 'census' || choice === 'as-written';
   // the red rule at the left edge means "this needs a decision or an answer"; once settled it turns to ink
   return (
-    <div className={`mt-5 border-l-4 py-0.5 pl-4 ${settled ? 'border-night' : 'border-pen'}`}>
-      <p className={`text-[19px] font-semibold leading-snug ${settled ? '' : 'text-pen'}`}>{title}</p>
-      <p className="mt-0.5 max-w-[80ch]">{identityDetail(issue)}</p>
+    <div className={`mt-6 border-l-[3px] py-1 pl-5 ${settled ? 'border-forest' : 'border-amber'}`}>
+      <p className={`font-display text-[25px] font-semibold leading-snug tracking-[-0.005em] ${settled ? 'text-ink' : 'text-amber'}`}>{title}</p>
+      <p className="mt-1 max-w-[80ch] font-display text-[18px] leading-snug text-ink">{identityDetail(issue)}</p>
       {choice === 'ask' ? (
         <>
-          <p className="mt-2 max-w-[80ch] text-[16px] text-pen">{t.waitingIdentity(ownerOf(act))}</p>
+          <p className="mt-2 max-w-[80ch] text-[16px] text-amber-ink">{t.waitingIdentity(ownerOf(act))}</p>
           <AnswerBox refId={`identity:${issue.id}`} owner={ownerOf(act)} />
           {s.session!.answers?.[`identity:${issue.id}`] && issue.kind !== 'no-identity' && settle}
         </>
       ) : choice ? (
-        <p className="mt-1.5 flex items-center gap-1.5 font-semibold">
-          <Check size={18} strokeWidth={2.5} aria-hidden /> {t.settled(choice === 'census')}
+        <p className="mt-2.5 flex items-center gap-2 font-semibold">
+          <Tick size={20} /> {t.settled(choice === 'census')}
         </p>
       ) : (
         settle
@@ -810,22 +836,22 @@ function MarginNotes({ item, candidate, a, b }: { item: ReviewItem; candidate?: 
   // with no tagged line above them, the plain remarks start at the left edge
   const flat = !(candidate?.exact || (b && (candidate?.local || candidate?.cloud)) || rule || relayed);
   return (
-    <aside className="mt-6" aria-labelledby="why">
-      <h3 id="why" className="text-[15px] text-ink-soft">
-        {t.why}
+    <aside className="mt-7" aria-labelledby="why">
+      <h3 id="why">
+        <Eyebrow icon={<Sparkles size={14} strokeWidth={2} aria-hidden />}>{t.why}</Eyebrow>
       </h3>
-      <ul className="mt-2 space-y-2">
+      <ul className="mt-3 space-y-2">
         {candidate?.exact && <TrailLine tag={<Route source="rule" />}>{t.identical}</TrailLine>}
         {note(candidate?.local, 'first')}
         {note(candidate?.cloud, 'second')}
         {rule && <TrailLine tag={<Route source="rule" />}>{t.rulesOnly(rule.rule)}</TrailLine>}
         {relayed && (
-          <TrailLine tag={<Route source="rule" />} tone="text-pen">
+          <TrailLine tag={<Route source="rule" />} tone="text-amber-ink">
             {t.relayed(b!.documentedBy, relayed)}
           </TrailLine>
         )}
         {missingTime && (
-          <TrailLine flat={flat} tone="text-pen">
+          <TrailLine flat={flat} tone="text-amber-ink">
             {missingTime}
           </TrailLine>
         )}
@@ -873,8 +899,8 @@ function CurrentDecision({ item }: { item: ReviewItem }) {
     .filter(Boolean);
   const waiting = d.some((x) => x?.kind === 'unresolved');
   return (
-    <p className={`mb-3 flex items-start gap-2 ${waiting ? 'text-pen' : 'font-semibold'}`}>
-      {!waiting && <Check size={19} strokeWidth={2.5} className="mt-[3px] shrink-0" aria-hidden />}
+    <p className={`mb-3 flex items-start gap-2 ${waiting ? 'text-amber-ink' : 'font-semibold'}`}>
+      {!waiting && <Tick size={20} className="mt-[2px]" />}
       {t.decided(item.kind === 'pair' ? t.decidedPair(text[0] ?? '', text[1] ?? '') : t.decidedOne(text[0] ?? ''))}
     </p>
   );
@@ -887,7 +913,7 @@ function onlyIn(x: Act, y: Act): string[] {
   return x.actText.split(/[\s,;:()]+/).filter((w) => squash(w).length > 1 && !other.includes(squash(w)));
 }
 
-type Option = { label: string; d: Record<string, Disposition>; suggested?: boolean; tone?: 'primary' | 'secondary' | 'pen'; confirm?: string };
+type Option = { label: string; d: Record<string, Disposition>; suggested?: boolean; tone?: 'primary' | 'secondary' | 'ask'; confirm?: string };
 
 function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; b?: Act; decided: boolean; onDecide: (d: Record<string, Disposition>, label: string) => void }) {
   const session = useSession().session!;
@@ -918,19 +944,19 @@ function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; 
       if (lost.length) drops = t.drops(rowName(a), lost.join(' '));
     }
     options.push({ label: t.keepBoth, d: { [a.id]: pa?.kind === 'corrected' ? { kind: 'approved' } : (sug[a.id] ?? { kind: 'approved' }), [b.id]: { kind: 'approved' } }, confirm: confirmBoth });
-    options.push({ label: t.ask(q.owner), d: ask([a.id, b.id], q.owner, q.question), tone: 'pen' });
+    options.push({ label: t.ask(q.owner), d: ask([a.id, b.id], q.owner, q.question), tone: 'ask' });
   } else {
     const p = item.proposals[0];
     const owner = ownerOf(a);
     const flags = errorProneAbbreviations(`${a.actText} ${a.notes}`);
     if (item.group === 'open' || p?.disposition.kind === 'unresolved') {
       const q = p?.disposition.kind === 'unresolved' ? p.disposition.question : singleQuestion('open', a, flags);
-      options.push({ label: t.ask(owner), d: ask([a.id], owner, q), tone: 'pen' });
+      options.push({ label: t.ask(owner), d: ask([a.id], owner, q), tone: 'ask' });
       // never "keep as written" an error-prone abbreviation or a row with no patient: only the author's answer can settle it
       if (answer) options.push({ label: t.enterWith(owner), d: { [a.id]: { kind: 'approved', note: t.clarified(owner, answer.text) } } });
     } else {
       options.push({ label: t.keepIt, d: { [a.id]: { kind: 'approved' } } });
-      options.push({ label: t.ask(owner), d: ask([a.id], owner, singleQuestion(item.group, a, flags)), tone: 'pen' });
+      options.push({ label: t.ask(owner), d: ask([a.id], owner, singleQuestion(item.group, a, flags)), tone: 'ask' });
     }
     options.push({
       label: item.group === 'only-earlier' ? t.removed : t.doNotEnter,
@@ -949,15 +975,15 @@ function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; 
           <AnswerBox refId={item.id} owner={(decisions[item.actIds[0]!] as { owner?: string })?.owner ?? ownerOf(a)} />
         </div>
       )}
-      {drops && <p className="mb-3 max-w-[80ch] text-pen">{drops}</p>}
-      <div className="flex flex-wrap items-center gap-2.5">
+      {drops && <p className="mb-3 max-w-[80ch] text-amber-ink">{drops}</p>}
+      <div className="flex flex-wrap items-center gap-3">
         {options.map((o) => {
           const pressed = decided && current === JSON.stringify(o.d);
           if (confirming === o.label)
             return (
-              <span key={o.label} className="flex w-full flex-wrap items-center gap-2 border-l-4 border-pen py-1 pl-3 text-pen">
+              <span key={o.label} className="flex w-full flex-wrap items-center gap-3 border-l-[3px] border-amber py-1 pl-4 text-amber-ink">
                 {o.confirm}
-                <Button tone="pen" onClick={() => onDecide(o.d, `${t.confirmed(o.label)} (${item.id})`)}>
+                <Button tone="ask" onClick={() => onDecide(o.d, `${t.confirmed(o.label)} (${item.id})`)}>
                   {t.yesBoth}
                 </Button>
                 <Button tone="quiet" onClick={() => setConfirming(null)}>
@@ -968,11 +994,11 @@ function Actions({ item, a, b, decided, onDecide }: { item: ReviewItem; a: Act; 
           return (
             <Button
               key={o.label}
-              tone={o.tone === 'pen' ? 'pen' : o.suggested && !decided ? 'primary' : 'secondary'}
+              tone={o.tone === 'ask' ? 'ask' : o.suggested && !decided ? 'primary' : 'secondary'}
               onClick={() => (o.confirm && !pressed ? setConfirming(o.label) : onDecide(o.d, `${o.label} (${item.id})`))}
               aria-pressed={pressed}
             >
-              {pressed && <Check size={17} strokeWidth={2.5} aria-hidden />}
+              {pressed && <Tick size={18} />}
               {o.label}
               {o.suggested && <span className="font-normal opacity-75">{t.suggested}</span>}
             </Button>
@@ -1012,24 +1038,28 @@ function CloudOffer() {
   if (!open.length) return null;
   const n = open.length;
   return (
-    <div className="border-b border-ballpoint/25 bg-ballpoint-wash">
+    <div className="rounded-2xl border border-[#dfe5d8] bg-sage">
       {/* narrow pane: the whole line opens the dialog */}
       <button
         type="button"
         onClick={() => setShow(true)}
         aria-haspopup="dialog"
-        className="flex min-h-[48px] w-full items-center gap-2 px-4 py-2 text-left text-[16px] font-semibold sm:px-8 @3xl:hidden"
+        className="flex min-h-[52px] w-full items-center gap-3 px-5 py-2.5 text-left text-[16px] font-semibold @3xl:hidden"
       >
-        <Cloud size={18} strokeWidth={2.2} className="shrink-0 text-ballpoint" aria-hidden />
+        <Cloud size={22} strokeWidth={1.8} className="shrink-0 text-forest" aria-hidden />
         <span className="min-w-0 flex-1">
           {t.disputedTitle(n)}
           <span className="sr-only">. {t.showSent(false)}</span>
         </span>
         <ChevronRight size={20} className="shrink-0" aria-hidden />
       </button>
-      <div className="hidden items-center justify-between gap-x-6 px-8 py-2.5 @3xl:flex">
-        <p className="max-w-[92ch] text-[16px] leading-snug">
-          <Route source="in_cloud" /> <strong className="ml-1 font-semibold">{t.disputedTitle(n)}</strong>.{t.disputedOffer}
+      <div className="hidden items-center justify-between gap-x-6 px-6 py-4 @3xl:flex">
+        <p className="flex max-w-[110ch] items-center gap-4 text-[16px] leading-snug">
+          <Cloud size={28} strokeWidth={1.7} className="shrink-0 text-forest" aria-hidden />
+          <span>
+            <strong className="font-semibold">{t.disputedTitle(n)}.</strong>
+            {t.disputedOffer}
+          </span>
         </p>
         <Button tone="secondary" className="shrink-0" onClick={() => setShow(true)} aria-haspopup="dialog">
           {t.showSent(false)}
@@ -1039,12 +1069,12 @@ function CloudOffer() {
         ref={dialog}
         onClose={() => setShow(false)}
         aria-labelledby="cloud-title"
-        className="m-auto w-[min(60rem,calc(100vw-1.5rem))] rounded-md border border-rule-strong bg-sheet p-0 text-ink backdrop:bg-night/55"
+        className="m-auto w-[min(60rem,calc(100vw-1.5rem))] rounded-2xl border border-rule bg-card p-0 text-ink backdrop:bg-ink/50"
       >
         {show && (
           <div className="flex max-h-[calc(100dvh-1.5rem)] flex-col">
             <div className="border-b border-rule px-5 py-4 sm:px-6">
-              <h2 id="cloud-title" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[21px] font-extrabold tracking-[-0.01em] text-night">
+              <h2 id="cloud-title" className="flex flex-wrap items-center gap-x-3 gap-y-1 font-display text-[26px] font-semibold tracking-[-0.01em] text-ink">
                 {t.sentTitle} <Route source="in_cloud" />
               </h2>
               <p className="mt-2 max-w-[86ch] text-[16px] leading-snug">
@@ -1054,7 +1084,7 @@ function CloudOffer() {
             </div>
             <ol className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-paper px-5 py-4 sm:px-6">
               {preview.map((p) => (
-                <li key={p.candidateId} className="border border-rule bg-sheet p-3">
+                <li key={p.candidateId} className="rounded-xl border border-rule bg-sheet p-3">
                   <pre className="whitespace-pre-wrap font-mono text-[14px] leading-relaxed text-ink">{p.prompt}</pre>
                 </li>
               ))}
