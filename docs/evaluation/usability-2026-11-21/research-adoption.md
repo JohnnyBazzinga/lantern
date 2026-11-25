@@ -173,9 +173,9 @@ Each section separates **Evidence**, which is what a source says, from **Inferen
 - https://arxiv.org/abs/2506.16345 (Guerino et al., INTERACT 2025)
 
 **E5.4 A counter-finding: in another study, multi-model synthetic heuristic evaluation found more issues than 5 experts.** Quotes: it "exceeded the performance of 5 experienced human evaluators (57% and 63%)" but "struggled with recognizing some UI components and design conventions" and with "identifying across screen violations".
-- https://arxiv.org/abs/2507.02306 (Zhong, McDonald & Hsieh, Jul 2025; GPT-4, Gemini 1.5 Pro, Claude 3.5 Sonnet)
+- https://arxiv.org/abs/2507.02306 (Zhong, McDonald & Hsieh, Jul 2025; three commercial LLMs)
 
-**E5.5 LLM agents reproduce real users' step-by-step behaviour poorly.** Quote: "prompt-based LLMs (DeepSeek-R1, Llama, Claude) achieve only 11.86% accuracy in generating human actions"
+**E5.5 LLM agents reproduce real users' step-by-step behaviour poorly.** Quote: "prompt-based LLMs […] achieve only 11.86% accuracy in generating human actions"
 - https://arxiv.org/abs/2503.20749 (Lu et al.; ACL 2026)
 
 **E5.6 Simulated users are miscalibrated, and their errors differ from real users' errors.** Quotes: results "lacks robustness" (agent success varies by up to 9 points depending on the user LLM) · "systematic miscalibration" · simulated users "introduce conversational artifacts and surface different failure patterns than human users"

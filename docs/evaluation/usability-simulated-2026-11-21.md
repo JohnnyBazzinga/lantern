@@ -23,11 +23,11 @@ clinical secretaries and nurses.
 | ID | Persona | Model | Actions | Report |
 |---|---|---|---|---|
 | P1 | Rita, 52, clinical secretary in a Portuguese SNS hospital, basic Excel, prefers Portuguese | Codex (`gpt-6.2-astra`, high) | 64 | [p1-rita.md](usability-2026-11-21/p1-rita.md) |
-| P2 | Dave, 38, ward clerk in an NHS trust, has lived a 2-day EPR outage | Claude agent | 62 | [p2-dave.md](usability-2026-11-21/p2-dave.md) |
-| P3 | Inês, 41, nurse in charge of the night team, checking the secretary's work | Claude agent | 65 | [p3-ines.md](usability-2026-11-21/p3-ines.md) |
+| P2 | Dave, 38, ward clerk in an NHS trust, has lived a 2-day EPR outage | LLM agent (second model family) | 62 | [p2-dave.md](usability-2026-11-21/p2-dave.md) |
+| P3 | Inês, 41, nurse in charge of the night team, checking the secretary's work | LLM agent (second model family) | 65 | [p3-ines.md](usability-2026-11-21/p3-ines.md) |
 | P4 | Miguel, 45, head of information security, decides what runs on ward PCs | Codex (`gpt-6.2-astra`, high) | 88 | [p4-miguel.md](usability-2026-11-21/p4-miguel.md) |
-| R1 | Desk research: who re-enters what after downtime (PT, UK, US) | Claude agent | — | [research-roles.md](usability-2026-11-21/research-roles.md) |
-| R2 | Desk research: adoption constraints, and the validity of simulated users | Claude agent | — | [research-adoption.md](usability-2026-11-21/research-adoption.md) |
+| R1 | Desk research: who re-enters what after downtime (PT, UK, US) | LLM agent (second model family) | — | [research-roles.md](usability-2026-11-21/research-roles.md) |
+| R2 | Desk research: adoption constraints, and the validity of simulated users | LLM agent (second model family) | — | [research-adoption.md](usability-2026-11-21/research-adoption.md) |
 
 ## Results before the fixes
 
