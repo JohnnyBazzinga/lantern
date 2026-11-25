@@ -136,7 +136,7 @@ So Remote Config sets `cloud_model = gemini-3.5-flash-lite` and `cloud_fallback_
 | Check | Status |
 |---|---|
 | S1 on-device call online | pass: `on_device`, 0 Gemini requests, 3.7 s cold start |
-| S1 offline after a browser restart | pending |
+| S1 offline | reload with Wi-Fi off passed on 2026-11-24 (Windows showed no internet; the app opened, the local test answered on the device in 4.2 s with 0 requests to Gemini; shown in the demo video). After a full browser restart: pending |
 | S2 imported data never reaches the cloud | pass: 0 Gemini requests; with Gemini Nano hidden the call was blocked, 0 requests |
 | S3b extraction set in the cloud | pending |
 | S4 App Check-protected cloud call | pass (repeated on 2026-11-22 on build `4012ba1`, in Chrome on the developer's laptop; headless Chromium is now refused by reCAPTCHA) |
