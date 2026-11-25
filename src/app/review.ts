@@ -2,6 +2,8 @@ import { msgs, tr } from '../i18n/lang';
 import type { Proposal, ReviewGroup } from '../core/reconcile';
 import { GROUP_ORDER } from '../core/reconcile';
 import type { Act, Disposition, IdentityIssue } from '../core/types';
+import { ownerOf } from '../core/clinical';
+import { identityQuestion } from '../core/questions';
 
 /**
  * Review items: what Rita decides, one at a time. A pair of rows (earlier + later version) or a
@@ -87,4 +89,37 @@ export function isDecided(item: ReviewItem, decisions: Record<string, Dispositio
 /** Lantern's suggestion for an item, as a decision map. */
 export function suggested(item: ReviewItem): Record<string, Disposition> {
   return Object.fromEntries(item.proposals.map((p) => [p.actId, p.disposition]));
+}
+
+/**
+ * The decisions that follow from settling a patient's identity.
+ * - Asking the nurse blocks every row of the issue with the identity question.
+ * - Any other choice releases the rows that were waiting for that question.
+ * - Confirming a patient who is not on the census as a new admission also keeps the row, when keeping
+ *   it is Lantern's own suggestion. The button says "confirm and keep as written", and in the drill a
+ *   reviewer confirmed the admission, missed the second click ("Keep it") and the admission was lost.
+ */
+export function identityChoice(
+  issue: IdentityIssue | undefined,
+  issueId: string,
+  choice: 'census' | 'as-written' | 'ask',
+  acts: Act[],
+  current: Record<string, Disposition>,
+  items: ReviewItem[],
+): Record<string, Disposition> {
+  const decisions = { ...current };
+  if (choice !== 'ask')
+    for (const [id, d] of Object.entries(decisions)) if (d.kind === 'unresolved' && d.ref === `identity:${issueId}`) delete decisions[id];
+  if (choice === 'ask' && issue)
+    for (const id of issue.actIds) {
+      const act = acts.find((a) => a.id === id);
+      if (act) decisions[id] = { kind: 'unresolved', owner: ownerOf(act), question: identityQuestion(issue, act), ref: `identity:${issue.id}` };
+    }
+  if (choice === 'as-written' && issue?.kind === 'not-in-census')
+    for (const item of items) {
+      if (item.kind !== 'single' || !item.actIds.every((id) => issue.actIds.includes(id)) || isDecided(item, decisions)) continue;
+      const keep = suggested(item);
+      if (Object.values(keep).every((d) => d.kind === 'approved')) Object.assign(decisions, keep);
+    }
+  return decisions;
 }

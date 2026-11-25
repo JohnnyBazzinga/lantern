@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { Proposal } from '../core/reconcile';
 import type { Act, AuditEvent, Disposition, IdentityIssue, MatchCandidate, SourceFile } from '../core/types';
+import type { LedgerEntry } from '../ai/ledger';
 
 /**
  * A review session, kept in this browser's IndexedDB so Rita can close the laptop and resume,
@@ -36,6 +37,9 @@ export interface SessionData {
   answers?: Record<string, { text: string; at: string; recordedBy?: string }>;
   /** last change, for automatic expiry of imported reviews on shared PCs */
   updatedAt?: number;
+  /** the model calls made for this review (where each ran; references, never contents), kept so the
+   *  counts survive a reload, offline included */
+  ledger?: LedgerEntry[];
 }
 
 export interface Entered {

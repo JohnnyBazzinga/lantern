@@ -64,3 +64,27 @@ export function ledgerSummary(es: LedgerEntry[] = entries) {
       .reduce((n, e) => n + e.inferenceRequests, 0),
   };
 }
+
+/**
+ * Puts back the calls of a review that was saved before the page was reloaded, so "On this device",
+ * "Cloud" and the result's "Where the AI ran" still count them. Entries already present are skipped.
+ */
+export function restoreLedger(saved: LedgerEntry[]): void {
+  const have = new Set(entries.map((e) => e.id));
+  const add = saved.filter((e) => !have.has(e.id));
+  if (!add.length) return;
+  entries.push(...add);
+  entries.sort((a, b) => b.at.localeCompare(a.at));
+  listeners.forEach((l) => l([...entries]));
+}
+
+/**
+ * The calls that belong to a review: its saved ones, plus any new call made since it was opened.
+ * Diagnostics (the IT check page's local test) are not part of a review.
+ */
+export function mergeSessionLedger(saved: LedgerEntry[] | undefined, all: LedgerEntry[], openedAt: string): LedgerEntry[] {
+  const mine = saved ?? [];
+  const have = new Set(mine.map((e) => e.id));
+  const add = all.filter((e) => e.dataOrigin !== 'diagnostic' && !have.has(e.id) && e.at >= openedAt);
+  return add.length ? [...add, ...mine].sort((a, b) => b.at.localeCompare(a.at)) : mine;
+}

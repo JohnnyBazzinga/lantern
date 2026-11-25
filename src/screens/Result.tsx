@@ -166,8 +166,10 @@ export default function Result({ onBack }: { onBack: () => void }) {
   }, [key, session]);
 
   const minutes = session.finishedAt ? Math.max(1, Math.round((session.finishedAt - session.startedAt) / 60000)) : null;
-  const onDevice = ledger.filter((e) => e.inferenceSource === 'on_device').length;
-  const inCloud = ledger.filter((e) => e.inferenceSource === 'in_cloud').length;
+  // this review's own calls (kept with it, so a reload does not reset them); the page's ledger otherwise
+  const calls = session.ledger?.length ? session.ledger : ledger;
+  const onDevice = calls.filter((e) => e.inferenceSource === 'on_device').length;
+  const inCloud = calls.filter((e) => e.inferenceSource === 'in_cloud').length;
   usePageTitle(t.pageTitle);
   const total = key?.expected.worklist.approvedActs ?? 27;
   const h2 = 'font-display text-[28px] font-semibold leading-tight tracking-[-0.01em] text-ink';
@@ -203,7 +205,9 @@ export default function Result({ onBack }: { onBack: () => void }) {
                 {(
                   [
                     ['amend', t.got.amend(scores.you.raw.amend ?? 0, scores.you.amendmentsWithNurse, 3), (scores.you.raw.amend ?? 0) + scores.you.amendmentsWithNurse === 3],
-                    ['lost', t.got.lost(scores.you.earlierOnlyKept), scores.you.actsLost.length === 0],
+                    // the three rows the sorted copy lost: green when all three reach the list (acts lost
+                    // for other reasons are counted below, in the bars and in "Acts lost")
+                    ['lost', t.got.lost(scores.you.earlierOnlyKept), (scores.you.raw.earlier ?? 0) === (key?.expected.onlyInV1.length ?? 3)],
                     ['identity', t.got.identity(scores.you.identityFound), scores.you.raw.idFound === 4],
                     ['open', t.got.open(scores.you.openQuestionsKept), scores.you.raw.open === 2],
                     ['alike', t.got.alike(scores.you.falseMerges.length), scores.you.falseMerges.length === 0],

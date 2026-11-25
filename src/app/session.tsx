@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { cloudAllowed } from '../ai/cloudPayload';
+import { getLedger, mergeSessionLedger, restoreLedger, subscribeLedger } from '../ai/ledger';
 import { checkLocalAvailability, type LocalAvailability } from '../ai/capability';
 import { loadConfig, RC_DEFAULTS, type LanternConfig } from '../firebase/remoteConfig';
 import { escalations, propose, type EscalationReason, type ReviewGroup } from '../core/reconcile';
@@ -7,10 +8,8 @@ import type { CanonicalField } from '../core/fields';
 import type { Act, AuditEvent, Disposition, SourceFile } from '../core/types';
 import { loadDrillFiles, importUserFile } from './files';
 import { askSecondOpinion, mapFile, reconcileFiles, secondOpinionPreview, type JudgedPair, type Progress } from './pipeline';
-import { buildItems, groupCopy, isDecided, suggested, type ReviewItem } from './review';
+import { buildItems, groupCopy, identityChoice, isDecided, suggested, type ReviewItem } from './review';
 import { clearAllSessions, latestSession, saveSession, type SessionData } from './store';
-import { ownerOf } from '../core/clinical';
-import { identityQuestion } from '../core/questions';
 import { ct } from '../core/i18n';
 import { defaultNightOf } from '../core/worklist';
 import { identityDetail } from '../core/identity';
@@ -125,6 +124,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void latestSession().then((s) => setResumable(s && s.acts.length ? s : null));
   }, [refreshLocal]);
 
+  // The review keeps its own record of the model calls made for it. After a reload the page's ledger
+  // starts empty, so the saved calls are put back when the review is resumed; new calls are added as
+  // they happen. Without this, "On this device" and the result's "Where the AI ran" fell to 0.
+  const sessionId = session?.id;
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  useEffect(() => {
+    if (!sessionId) return;
+    const saved = sessionRef.current?.ledger;
+    if (saved?.length) restoreLedger(saved);
+    return subscribeLedger((all) =>
+      setSession((s) => {
+        if (!s || s.id !== sessionId) return s;
+        const merged = mergeSessionLedger(s.ledger, all, s.createdAt);
+        return merged === s.ledger ? s : { ...s, ledger: merged };
+      }),
+    );
+  }, [sessionId]);
+
+  // Some steps replace the whole review with a copy taken before their model calls (the comparison,
+  // the second opinion), which would drop the calls recorded meanwhile: put them back after every change.
+  useEffect(() => {
+    if (!session) return;
+    const merged = mergeSessionLedger(session.ledger, getLedger(), session.createdAt);
+    if (merged !== session.ledger) setSession((s) => (s && s.id === session.id ? { ...s, ledger: mergeSessionLedger(s.ledger, getLedger(), s.createdAt) } : s));
+  }, [session]);
+
   // persist every change, unless hospital IT has turned off saving imported (patient) reviews to disk
   useEffect(() => {
     if (!session) return;
@@ -144,6 +170,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const begin = async (kind: SessionData['kind'], files: SourceFile[]) => {
     setError(null);
+    // the review starts when its files are opened: the column-reading calls below belong to it
+    const opened = now();
     const mapped: SourceFile[] = [];
     for (const f of files) mapped.push({ ...f, mapping: await mapFile(f, cloudModel, progress) });
     setBusy(null);
@@ -151,7 +179,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
       kind,
       title: sessionTitle(kind),
-      createdAt: now(),
+      createdAt: opened,
       startedAt: Date.now(),
       files: mapped,
       acts: [],
@@ -289,21 +317,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSession((s) => {
       if (!s) return s;
       const issue = s.identity.find((i) => i.id === issueId);
-      const decisions = { ...s.decisions };
-      // settling the identity releases the rows that were waiting for it: they go back to the reviewer
-      if (choice !== 'ask')
-        for (const [id, d] of Object.entries(decisions)) if (d.kind === 'unresolved' && d.ref === `identity:${issueId}`) delete decisions[id];
-      // the identity question travels with every row of the issue, and blocks them until it is answered
-      if (choice === 'ask' && issue)
-        for (const id of issue.actIds) {
-          const act = s.acts.find((a) => a.id === id);
-          if (act) decisions[id] = { kind: 'unresolved', owner: ownerOf(act), question: identityQuestion(issue, act), ref: `identity:${issue.id}` };
-        }
+      const decisions = identityChoice(issue, issueId, choice, s.acts, s.decisions, items);
+      // rows the choice decided (a confirmed admission keeps its row) are recorded with it
+      const after = Object.fromEntries(Object.entries(decisions).filter(([id, d]) => s.decisions[id] === undefined && d.kind === 'approved'));
       return {
         ...s,
         decisions,
         identityDecisions: { ...s.identityDecisions, [issueId]: choice },
-        audit: audit(s, tr(M).identityAction(tr(M).identity[choice], issue ? identityDetail(issue) : issueId), issue?.actIds ?? []),
+        audit: audit(s, tr(M).identityAction(tr(M).identity[choice], issue ? identityDetail(issue) : issueId), issue?.actIds ?? [], Object.keys(after).length ? { after } : {}),
       };
     });
 
