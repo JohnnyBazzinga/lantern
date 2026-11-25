@@ -19,6 +19,8 @@ Built for Google's **#BuildHybridAI 2026** hackathon with **Firebase AI Logic hy
 
 **https://lantern-downtime.web.app**
 
+**Demo video (2:56):** https://youtu.be/BmM6sVOlffY
+
 1. **Start the Ward 7B drill.** It is a synthetic night shift: a census plus two emailed versions of the downtime log, with the traps real logs have.
 2. Check what Lantern read each column as. Choose **Compare the two versions**.
 3. Review the queue. It is ordered patient identity first, then questions for the nurse, corrections, rows typed twice, rows missing from the newer file, new rows, and identical rows. The original cells are shown side by side, with differences highlighted.
