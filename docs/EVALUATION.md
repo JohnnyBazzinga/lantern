@@ -136,10 +136,27 @@ So Remote Config sets `cloud_model = gemini-3.5-flash-lite` and `cloud_fallback_
 | Check | Status |
 |---|---|
 | S1 on-device call online | pass: `on_device`, 0 Gemini requests, 3.7 s cold start |
-| S1 offline | reload with Wi-Fi off passed on 2026-11-24 (Windows showed no internet; the app opened, the local test answered on the device in 4.2 s with 0 requests to Gemini; shown in the demo video). After a full browser restart: pending |
+| S1 offline | pass. On 2026-11-24, a reload with Wi-Fi off opened the app, and the local test answered on the device in 4.2 s with 0 requests to Gemini (shown in the demo video). On 2026-11-28, after a full browser restart with Wi-Fi off, the whole drill ran on the device from start to result: 14 on-device calls, 0 cloud, every check green |
 | S2 imported data never reaches the cloud | pass: 0 Gemini requests; with Gemini Nano hidden the call was blocked, 0 requests |
 | S3b extraction set in the cloud | pending |
 | S4 App Check-protected cloud call | pass (repeated on 2026-11-22 on build `4012ba1`, in Chrome on the developer's laptop; headless Chromium is now refused by reCAPTCHA) |
+
+### End-to-end test on 2026-11-28
+
+The hosted build `df2bda1`, on the developer's Windows laptop (Chrome 158 with Gemini Nano), Firefox and a phone:
+
+| Part | Setting | Result |
+|---|---|---|
+| A | Chrome with Gemini Nano | pass. The columns were read and compared in about 20 s, with 14 on-device calls and 0 cloud. The review survived a reload with its decisions and counters. The worklist had 27 acts and 2 questions, and printed one page per person. Every drill check was green. `#/check` was green, and its local test made 0 requests to Google. |
+| B | Firefox, no on-device AI | pass. The comparison ran in the cloud (11 fictional rows, 0 on-device). The second opinion took this to 22 rows; on the time correction it agreed with Lantern's rules, against the first cloud reading. |
+| C | Firefox, strict tracking protection | Google's reCAPTCHA was blocked, so App Check refused the cloud. Lantern fell back to its rules within seconds and sent nothing, but it did not say why. Fixed: see below. |
+| D | Xiaomi 14, Chrome | pass. No horizontal scroll; the bar and buttons were usable. |
+| E | Chrome restarted with Wi-Fi off | pass (S1 above). |
+
+The test found three problems, and all three are fixed:
+- **"(on-device)" on a cloud answer.** Without Gemini Nano, the reason under a "same act" suggestion said "(on-device)", although the reading above it correctly said the cloud. It now names where the opinion ran.
+- **Two category labels.** "Urine output 30ml…" and "Pulled out NG tube…" were labelled Medication, because a volume and the letters "NG" looked like a dose and a route. They are now Observation and Nursing care. No other drill row changed category.
+- **No explanation when the cloud was blocked.** When a browser has no on-device AI and the cloud cannot be reached, the review now says so at the top, explains the likely cause (a tracker blocker or the network blocking reCAPTCHA) and says how to see the AI. In that case it no longer offers a second opinion that would fail the same way.
 
 ## Limitations
 
@@ -147,7 +164,8 @@ So Remote Config sets `cloud_model = gemini-3.5-flash-lite` and `cloud_fallback_
 - **One machine.** Gemini Nano latency and stability vary with hardware and Chrome version; the stall above was found on this laptop only.
 - **No usability study.** No clinical secretary has used Lantern yet, so nothing here measures review time or errors made by people.
 - **Small numbers.** 11 judged pairs per run and 5 runs cannot support statistical claims.
-- **Free-tier cloud.** Latency ranged from under 1 s to over a minute depending on the model and load, and rate limits (429) occurred. Production use would need a paid tier and its own capacity planning.
+- **Free-tier measurements.** The cloud figures above were measured on the free tier: latency ranged from under 1 s to over a minute depending on the model and load, and rate limits (429) occurred. Since 2026-11-26 the hosted demo uses the paid tier; production use would still need its own capacity planning.
+- **Tracker blockers.** Strict tracking protection (Firefox) and some blockers stop Google's reCAPTCHA, so App Check, and with it the cloud, is unavailable there. A browser without on-device AI then gets Lantern's rules only (see the end-to-end test).
 - **Development history.** Prompts and rules were tuned on the development set and on drill runs, so the drill is not a blind test of the final version.
 
 ## Reproducing
