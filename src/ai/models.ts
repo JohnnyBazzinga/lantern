@@ -12,6 +12,7 @@ import { getAppCheckInstance, getFirebaseApp } from '../firebase/app';
 import { assertLocalReady, hasPromptApi, LOCAL_CORE_OPTIONS, LocalModelUnavailableError } from './capability';
 import { recordLedger, type LedgerEntry, type LedgerMode } from './ledger';
 import { inferenceRequests, watchRequests } from './netwatch';
+import { UNREACHABLE } from './reach';
 import { loadConfig } from '../firebase/remoteConfig';
 
 /**
@@ -115,7 +116,6 @@ const CLOUD_TIMEOUT_MS = 45_000;
  */
 const CLOUD_HARD_DEADLINE_MS = CLOUD_TIMEOUT_MS + 5_000;
 const CLOUD_PAUSE_MS = 2 * 60_000;
-const UNREACHABLE = /failed to fetch|networkerror|network error|fetch-error|load failed|appCheck\/|recaptcha/i;
 let cloudDownUntil = 0;
 
 /** The cloud cannot be reached from this network right now; not worth retrying for a while. */

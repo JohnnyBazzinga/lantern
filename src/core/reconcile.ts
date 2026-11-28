@@ -111,6 +111,13 @@ export function verdict(
   return { relation: g.relation, basis: c.cloud ? 'cloud' : 'local', ...(g.rule && { rule: g.rule }) };
 }
 
+/** Where the opinion behind a "same act" suggestion actually ran: the cloud fallback's first opinion is not on-device. */
+function ranBy(c: MatchCandidate, basis: ResolvedPair['basis']): 'cloud' | 'rule' | 'in-cloud' | 'local' {
+  if (basis === 'cloud') return 'cloud';
+  if (basis === 'rule' || c.local?.source === 'rule') return 'rule';
+  return c.local?.source === 'in_cloud' ? 'in-cloud' : 'local';
+}
+
 export function escalations(cands: MatchCandidate[], acts: Map<string, Act>): Map<string, EscalationReason[]> {
   const out = new Map<string, EscalationReason[]>();
   const add = (id: string, r: EscalationReason) => out.set(id, [...(out.get(id) ?? []), r]);
@@ -206,7 +213,7 @@ export function propose({ earlier, later, candidates, identity }: ReconcileInput
       set({
         actId: b.id,
         disposition: { kind: 'duplicate', of: a.id },
-        because: c.exact ? because.copyOf(rowRef(a)) : because.sameAs(rowRef(a), vd.basis === 'cloud' ? 'cloud' : vd.basis === 'rule' ? 'rule' : 'local'),
+        because: c.exact ? because.copyOf(rowRef(a)) : because.sameAs(rowRef(a), ranBy(c, vd.basis)),
         needsReview: !c.exact || contested,
         group: c.exact ? 'copies' : 'likely-same',
       });

@@ -35,16 +35,23 @@ const ADT = new RegExp(
   ].join('|'),
   'i',
 );
+// "NG" is a route only when a dose goes down it: "NG tube" is the device (pulled out, reinserted).
 const MEDICATION =
-  /\b\d+(?:[.,]\d+)?\s?(?:mg|mcg|micrograms?|g|ml|mL|L|units?|IU|UI|unidades|mmol|gotas)\b|\b(?:IV|EV|PO|SC|IM|PR|NG|SL|neb(?:uliser)?s?|infusion|bolus|given|withheld)\b/;
+  /\b\d+(?:[.,]\d+)?\s?(?:mg|mcg|micrograms?|g|ml|mL|L|units?|IU|UI|unidades|mmol|gotas)\b|\b(?:IV|EV|PO|SC|IM|PR|NG(?!\s*[Tt]ube)|SL|neb(?:uliser)?s?|infusion|bolus|given|withheld)\b/;
+/** What comes out of the patient (urine, drains, stoma): its volume is a measurement, not a dose. */
+const OUTPUT = /\b(?:urine output|output|drain(?:age)?|stoma|fluid balance|diurese|drenagem|d[eé]bito|balan[cç]o h[ií]drico)\b/i;
+const VOLUME = /\b\d+(?:[.,]\d+)?\s?(?:ml|mL|L)\b/g;
 const MEDICATION_PT = /\b(?:per os|via oral|subcut[aâ]ne[oa]|endoven[oa]s[oa]|perfus[aã]o|b[oó]lus|administrad[oa]|suspens[oa]|nebuliza[cç][aã]o|aerossol)\b/i;
 const OBSERVATION =
-  /\b(?:BP|HR|RR|SpO2|sats|temp(?:erature)?|NEWS2?|GCS|BM|glucose|pain \d+\/10|urine output|obs|neuro obs|temperatura|glicemia|satura[cç][aã]o|escala de coma|dor \d+\/10|diurese|sinais vitais|avalia[cç][aã]o neurol[oó]gica|vigil[aâ]ncia neurol[oó]gica)\b/i;
+  /\b(?:BP|HR|RR|SpO2|sats|temp(?:erature)?|NEWS2?|GCS|BM|glucose|pain \d+\/10|urine output|(?:drain(?:age)?|stoma|NG) output|fluid balance|obs|neuro obs|temperatura|glicemia|satura[cç][aã]o|escala de coma|dor \d+\/10|diurese|drenagem|balan[cç]o h[ií]drico|sinais vitais|avalia[cç][aã]o neurol[oó]gica|vigil[aâ]ncia neurol[oó]gica)\b/i;
 /** Portuguese vital-sign abbreviations, upper case only ("TA 128/80", "FC 92", "FR 18", "SSVV"). */
 const OBSERVATION_PT = /\b(?:TA|FC|FR|SSVV|SatO2)\b/;
 const COMMUNICATION = /\b(?:phoned?|called|rang|family|relatives?|informed|spoke (?:to|with)|NOK|telefonou|contactad[oa]|ligou|fam[ií]lia|familiares|informad[oa]|falou com)\b/i;
 
-const isMedication = (s: string) => MEDICATION.test(s) || MEDICATION_PT.test(s);
+const isMedication = (s: string) => {
+  const t = OUTPUT.test(s) ? s.replace(VOLUME, '') : s;
+  return MEDICATION.test(t) || MEDICATION_PT.test(t);
+};
 const isObservation = (s: string) => OBSERVATION.test(s) || OBSERVATION_PT.test(s);
 
 export function categoryOf(a: Pick<Act, 'actText' | 'notes'>): Category {

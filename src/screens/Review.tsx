@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Cloud, Copy, CopyCheck, FileMinus, FilePlus, History, MessageCircle, Sparkles, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
 import { subscribeLedger, type LedgerEntry } from '../ai/ledger';
+import { cloudOutOfReach } from '../ai/reach';
 import { groupCopy, isDecided, suggested, type ReviewItem } from '../app/review';
 import { sessionTitle, useSession } from '../app/session';
 import { isHighAlert, ownerOf, relayedFrom } from '../core/clinical';
@@ -40,6 +41,14 @@ const M = msgs(
     rulesAlone: " No on-device AI ran on this PC: the suggestions come from Lantern's rules alone, and nothing was sent.",
     cloudFailed:
       'The second opinion did not arrive: the cloud model did not answer. Nothing was changed. Decide these comparisons yourself, or ask the nurse who wrote them.',
+    cloudBlocked: (
+      <>
+        <strong className="font-semibold">The cloud did not answer in this browser, and this PC has no on-device AI.</strong> So Lantern&apos;s rules
+        compared the rows on their own, and no row was sent. A tracker blocker (Firefox&apos;s strict mode, for example) or the network may be blocking
+        Google&apos;s check (reCAPTCHA) that the cloud needs. To see the AI at work, allow this site in the blocker and start the drill again, or open Lantern in
+        desktop Chrome with Gemini Nano.
+      </>
+    ),
     tryAgain: 'Try again',
     arrival: (rows: number, items: number, copies: number) =>
       `Lantern compared ${rows} rows and left ${items} things to decide, most urgent first.${copies ? ` The ${copies} identical pairs at the end can be accepted in one click.` : ''}`,
@@ -171,6 +180,14 @@ const M = msgs(
     rulesAlone: ' Nenhuma IA local correu neste computador: as sugestões vêm só das regras do Lantern, e nada foi enviado.',
     cloudFailed:
       'A segunda opinião não chegou: o modelo na nuvem não respondeu. Nada foi alterado. Decida estas comparações na revisão, ou pergunte a quem as escreveu.',
+    cloudBlocked: (
+      <>
+        <strong className="font-semibold">A nuvem não respondeu neste browser, e este computador não tem IA local.</strong> Por isso as regras do Lantern
+        compararam as linhas sozinhas, e nenhuma linha foi enviada. Um bloqueador de rastreio (por exemplo, o modo rigoroso do Firefox) ou a rede pode estar
+        a bloquear a verificação da Google (reCAPTCHA) de que a nuvem precisa. Para ver a IA a trabalhar, permita este site no bloqueador e comece o
+        simulacro de novo, ou abra o Lantern no Chrome para computador com o Gemini Nano.
+      </>
+    ),
     tryAgain: 'Tentar de novo',
     arrival: (rows, items, copies) =>
       `O Lantern comparou ${rows} linhas e deixou ${items} pontos para decidir, do mais urgente para o menos urgente.${copies ? ` Os ${copies} pares iguais, no fim, podem ser aceites de uma vez.` : ''}`,
@@ -322,6 +339,9 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
   const doneItems = items.filter((i) => stateOf(i, session) === 'done').length;
   const waitingRows = new Set(waitingItems.flatMap((i) => i.actIds));
   const decidedRows = session.acts.filter((x) => session.decisions[x.id] && !waitingRows.has(x.id)).length;
+  // this review's own calls (kept with it across a reload); the page's ledger until they are merged in
+  const pageLedger = useLedgerEntries();
+  const outOfReach = cloudOutOfReach(session.kind, session.ledger?.length ? session.ledger : pageLedger);
 
   const next = (from: ReviewItem) => {
     const idx = items.findIndex((i) => i.id === from.id);
@@ -392,7 +412,16 @@ export default function Review({ onWorklist }: { onWorklist: () => void }) {
           )}
           {/* own files on a PC with no on-device model: say once that the suggestions are the rules' alone */}
           {s.decidedCount === 0 && session.kind === 'import' && !session.candidates.some((c) => c.local) && items.length > 0 && <Notice tone="info">{t.rulesAlone.trim()}</Notice>}
-          {session.kind === 'drill' && s.escalated.size > 0 && !session.cloudAsked && <CloudOffer />}
+          {/* the drill ran on the rules alone because the cloud was out of reach: say why, and how to see the AI */}
+          {outOfReach && (
+            <div role="status">
+              <Notice tone="info" className="flex items-start gap-3 px-5">
+                <Cloud size={22} strokeWidth={1.8} className="mt-0.5 shrink-0 text-forest" aria-hidden />
+                <span>{t.cloudBlocked}</span>
+              </Notice>
+            </div>
+          )}
+          {session.kind === 'drill' && s.escalated.size > 0 && !session.cloudAsked && !outOfReach && <CloudOffer />}
           {/* asked, and not one answer came back: say what happened and what to do */}
           {session.cloudAsked && !session.candidates.some((c) => c.cloud) && undecided.length > 0 && (
             <div role="status">

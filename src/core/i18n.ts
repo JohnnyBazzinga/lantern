@@ -105,8 +105,8 @@ const en = {
     identicalIn: (v: string) => `Identical in ${v}`,
     retypedIn: (v: string) => `Same act re-typed in ${v}`,
     copyOf: (row: string) => `Copy of ${row}`,
-    sameAs: (row: string, basis: 'cloud' | 'rule' | 'local') =>
-      `Same act as ${row} (${basis === 'cloud' ? 'cloud second opinion' : basis === 'rule' ? 'Lantern’s rules' : 'on-device'})`,
+    sameAs: (row: string, basis: 'cloud' | 'rule' | 'in-cloud' | 'local') =>
+      `Same act as ${row} (${basis === 'cloud' ? 'cloud second opinion' : basis === 'rule' ? 'Lantern’s rules' : basis === 'in-cloud' ? 'Gemini in the cloud' : 'on-device'})`,
     possiblyRetyped: (row: string) => `Possibly re-typed in ${row}; no on-device model was available, decide manually`,
     possiblySame: (row: string) => `Possibly the same act as ${row}; no on-device model was available, decide manually`,
     missingFrom: (v: string) => `Missing from ${v}: keep unless it was deliberately removed`,
@@ -245,7 +245,7 @@ const pt: typeof en = {
     retypedIn: (v) => `O mesmo ato, reescrito na ${v}`,
     copyOf: (row) => `Cópia da ${row}`,
     sameAs: (row, basis) =>
-      `O mesmo ato que a ${row} (${basis === 'cloud' ? 'segunda opinião na nuvem' : basis === 'rule' ? 'regras do Lantern' : 'neste computador'})`,
+      `O mesmo ato que a ${row} (${basis === 'cloud' ? 'segunda opinião na nuvem' : basis === 'rule' ? 'regras do Lantern' : basis === 'in-cloud' ? 'Gemini na nuvem' : 'neste computador'})`,
     possiblyRetyped: (row) => `Talvez reescrito na ${row}; não havia modelo local, decida manualmente`,
     possiblySame: (row) => `Talvez o mesmo ato que a ${row}; não havia modelo local, decida manualmente`,
     missingFrom: (v) => `Falta na ${v}: manter, a não ser que tenha sido retirado de propósito`,
